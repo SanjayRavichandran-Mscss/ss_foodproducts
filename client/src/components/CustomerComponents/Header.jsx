@@ -1,98 +1,3 @@
-// import React, { useState } from "react";
-// import { Link } from "react-router-dom";
-// import { LogOut, User, ShoppingCart, ChevronDown, Search } from "lucide-react";
-
-// export default function Header({ customerData, onLoginClick, onRegisterClick }) {
-//   const [showDropdown, setShowDropdown] = useState(false);
-
-//   const handleLogout = () => {
-//     localStorage.removeItem("customerToken");
-//     localStorage.removeItem("customerId");
-//     setShowDropdown(false);
-//     window.location.reload(); // Refresh to reset state in CustomerPage
-//   };
-
-//   return (
-//     <header className="bg-white py-4 px-6 shadow flex items-center justify-between fixed top-0 left-0 right-0 z-50">
-//       <div className="flex items-center">
-//         <img
-//           src="/Assets/Suyambu_Eng_logo.png"
-//           alt="Suyambu Stores Logo"
-//           className="h-12 w-auto object-contain"
-//         />
-//       </div>
-
-//       <div className="w-[400px] flex items-center">
-//         <span className="px-3 text-gray-400">
-//           <Search size={18} />
-//         </span>
-//         <input
-//           className="w-full px-4 py-2 rounded border border-gray-200 focus:outline-none focus:ring"
-//           type="text"
-//           placeholder="Search for fresh groceries..."
-//         />
-//       </div>
-
-//       <div className="flex items-center gap-4">
-//         <Link
-//           to="/cart"
-//           className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded flex items-center gap-2"
-//         >
-//           <ShoppingCart size={18} />
-//           <span className="font-semibold">Cart</span>
-//         </Link>
-//         {!customerData ? (
-//           <button
-//             onClick={onLoginClick}
-//             className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded flex items-center gap-2"
-//           >
-//             <User size={18} />
-//             <span className="font-semibold">Login</span>
-//           </button>
-//         ) : (
-//           <div className="relative">
-//             <button
-//               onClick={() => setShowDropdown(!showDropdown)}
-//               className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded flex items-center gap-2"
-//             >
-//               <User size={18} />
-//               <span className="font-semibold">Hi, {customerData.full_name}</span>
-//               <ChevronDown size={16} />
-//             </button>
-//             {showDropdown && (
-//               <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-50 p-4">
-//                 <div className="mb-3">
-//                   <div className="font-bold text-gray-900">{customerData.full_name}</div>
-//                   <div className="text-xs text-gray-600">{customerData.username}</div>
-//                   <div className="text-xs text-gray-600">{customerData.email}</div>
-//                 </div>
-//                 <button
-//                   onClick={handleLogout}
-//                   className="w-full flex items-center gap-2 px-3 py-2 rounded bg-gray-100 hover:bg-gray-200 text-sm text-gray-700"
-//                 >
-//                   <LogOut size={16} />
-//                   Logout
-//                 </button>
-//               </div>
-//             )}
-//           </div>
-//         )}
-//       </div>
-//     </header>
-//   );
-// }
-
-
-
-
-
-
-
-
-
-
-
-
 // Header.jsx
 import React, { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
@@ -139,7 +44,6 @@ export default function Header({ customerData, onLoginClick, onRegisterClick }) 
             alt="Suyambu Stores Logo"
             className="h-10 w-auto object-contain"
           />
-          <span className="hidden md:block ml-2 text-xl font-bold text-green-700">Suyambu Stores</span>
         </Link>
       </div>
 

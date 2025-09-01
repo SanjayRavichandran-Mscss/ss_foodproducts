@@ -179,6 +179,7 @@ const ManageCustomers = () => {
               <th className="border px-4 py-2 text-left">Full Name</th>
               <th className="border px-4 py-2 text-left">Phone</th>
               <th className="border px-4 py-2 text-left">Registered At</th>
+              <th className="border px-4 py-2 text-left">Order History</th>
             </tr>
           </thead>
           <tbody>
@@ -191,6 +192,11 @@ const ManageCustomers = () => {
                 <td className="border px-4 py-2">{customer.phone}</td>
                 <td className="border px-4 py-2">
                   {new Date(customer.created_at).toLocaleDateString()}
+                </td>
+                <td className="border px-4 py-2">
+                  <span className="text-blue-500 hover:underline cursor-pointer">
+                    View Order History
+                  </span>
                 </td>
               </tr>
             ))}

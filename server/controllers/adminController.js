@@ -221,14 +221,63 @@ const productUpload = multer({
   { name: "additional_images", maxCount: 5 },
 ]);
 
-// Add new product
+// exports.addProduct = [
+//   productUpload,
+//   async (req, res) => {
+//     try {
+//       const { name, description, price, stock_quantity, category_id } = req.body;
+
+//       if (!name || !price || !stock_quantity || !category_id) {
+//         return res.status(400).json({ error: "Missing required fields" });
+//       }
+
+//       let thumbnail_url = null;
+//       let additional_images = [];
+
+//       if (req.files) {
+//         if (req.files.thumbnail && req.files.thumbnail.length > 0) {
+//           thumbnail_url = `/productImages/${req.files.thumbnail[0].filename}`;
+//         }
+//         if (req.files.additional_images && req.files.additional_images.length > 0) {
+//           additional_images = req.files.additional_images.map(
+//             (file) => `/productImages/${file.filename}`
+//           );
+//         }
+//       }
+
+//       const sql = `
+//         INSERT INTO products 
+//         (name, description, price, stock_quantity, thumbnail_url, additional_images, category_id, admin_id, created_at, updated_at) 
+//         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+//       `;
+
+//       const [result] = await db.query(sql, [
+//         name,
+//         description || null,
+//         price,
+//         stock_quantity,
+//         thumbnail_url,
+//         stringifyAdditionalImages(additional_images),
+//         category_id,
+//         1,
+//       ]);
+
+//       return res.status(201).json({ message: "Product added successfully", id: result.insertId });
+//     } catch (error) {
+//       console.error("Error adding product:", error);
+//       return res.status(500).json({ error: "Internal server error" });
+//     }
+//   },
+// ];
+
+
 exports.addProduct = [
   productUpload,
   async (req, res) => {
     try {
-      const { name, description, price, stock_quantity, category_id } = req.body;
+      const { name, description, price, stock_quantity, category_id, quantity, uom_id } = req.body;
 
-      if (!name || !price || !stock_quantity || !category_id) {
+      if (!name || !price || !stock_quantity || !category_id || !quantity || !uom_id) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -248,8 +297,8 @@ exports.addProduct = [
 
       const sql = `
         INSERT INTO products 
-        (name, description, price, stock_quantity, thumbnail_url, additional_images, category_id, admin_id, created_at, updated_at) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+        (name, description, price, stock_quantity, thumbnail_url, additional_images, category_id, admin_id, created_at, updated_at, quantity, uom_id) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?)
       `;
 
       const [result] = await db.query(sql, [
@@ -261,6 +310,8 @@ exports.addProduct = [
         stringifyAdditionalImages(additional_images),
         category_id,
         1,
+        quantity,
+        uom_id,
       ]);
 
       return res.status(201).json({ message: "Product added successfully", id: result.insertId });
@@ -271,13 +322,13 @@ exports.addProduct = [
   },
 ];
 
-// Update product by ID
+
 exports.updateProduct = [
   productUpload,
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, description, price, stock_quantity, category_id, existing_additional_images } = req.body;
+      const { name, description, price, stock_quantity, category_id, existing_additional_images, quantity, uom_id } = req.body;
 
       // Check if product exists
       const [existing] = await db.query("SELECT * FROM products WHERE id = ?", [id]);
@@ -294,6 +345,8 @@ exports.updateProduct = [
       if (price) updateFields.price = price;
       if (stock_quantity) updateFields.stock_quantity = stock_quantity;
       if (category_id) updateFields.category_id = category_id;
+      if (quantity) updateFields.quantity = quantity;
+      if (uom_id) updateFields.uom_id = uom_id;
 
       let thumbnail_url = product.thumbnail_url;
       let additional_images = [];
@@ -370,7 +423,6 @@ exports.updateProduct = [
   },
 ];
 
-// Delete product by ID
 exports.deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
@@ -413,9 +465,10 @@ exports.deleteProduct = async (req, res) => {
 exports.viewProducts = async (req, res) => {
   try {
     const [rows] = await db.query(`
-      SELECT p.*, c.name AS category_name, c.description AS category_description 
+      SELECT p.*, c.name AS category_name, c.description AS category_description, u.uom_name 
       FROM products p 
       LEFT JOIN categories c ON p.category_id = c.id 
+      LEFT JOIN uom_master u ON p.uom_id = u.id 
       ORDER BY p.created_at DESC
     `);
 
@@ -428,6 +481,18 @@ exports.viewProducts = async (req, res) => {
     return res.status(200).json(parsedRows);
   } catch (error) {
     console.error("Error fetching products:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+
+
+exports.getUoms = async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM uom_master ORDER BY uom_name ASC');
+    return res.status(200).json(rows);
+  } catch (error) {
+    console.error("Error fetching UOMs:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 };

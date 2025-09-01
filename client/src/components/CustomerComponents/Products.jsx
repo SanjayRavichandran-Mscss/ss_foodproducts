@@ -132,6 +132,9 @@ function ProductCard({ product, isLoggedIn, handleAddToCart, handleAddToWishlist
         <span className="text-xs text-gray-500 block mb-2">
           {product.description || 'per item'}
         </span>
+        <span className="text-xs text-gray-500 block mb-2">
+          Quantity: {product.quantity} {product.uom_name || "N/A"}
+        </span>
         <button
           onClick={() => handleAddToCart(product.id)}
           disabled={!isLoggedIn || product.stock_quantity === 0}
@@ -147,14 +150,3 @@ function ProductCard({ product, isLoggedIn, handleAddToCart, handleAddToWishlist
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-

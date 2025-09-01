@@ -8,6 +8,7 @@ const FALLBACK_IMAGE = `${IMAGE_BASE}/fallback-image.png`;
 const ManageProducts = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [uoms, setUoms] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState(null);
@@ -22,11 +23,15 @@ const ManageProducts = () => {
     thumbnail_url: "",
     additional_images: [],
     existing_additional_images: [],
+    quantity: "",
+    uom_id: "",
   });
   const [categorySearch, setCategorySearch] = useState("");
+  const [uomSearch, setUomSearch] = useState("");
 
   useEffect(() => {
     loadCategories();
+    loadUoms();
     loadProducts();
   }, []);
 
@@ -37,6 +42,16 @@ const ManageProducts = () => {
       setCategories(data);
     } catch (error) {
       console.error("Failed to load categories", error);
+    }
+  };
+
+  const loadUoms = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/uoms`);
+      const data = await res.json();
+      setUoms(data);
+    } catch (error) {
+      console.error("Failed to load UOMs", error);
     }
   };
 
@@ -75,6 +90,10 @@ const ManageProducts = () => {
     cat.name.toLowerCase().includes(categorySearch.toLowerCase())
   );
 
+  const filteredUoms = uoms.filter(uom =>
+    uom.uom_name.toLowerCase().includes(uomSearch.toLowerCase())
+  );
+
   const openAddModal = () => {
     setFormData({
       id: null,
@@ -87,8 +106,11 @@ const ManageProducts = () => {
       thumbnail_url: "",
       additional_images: [],
       existing_additional_images: [],
+      quantity: "",
+      uom_id: "",
     });
     setCategorySearch("");
+    setUomSearch("");
     setModalOpen(true);
   };
 
@@ -104,8 +126,11 @@ const ManageProducts = () => {
       thumbnail_url: product.thumbnail_url,
       additional_images: [],
       existing_additional_images: product.additional_images || [],
+      quantity: product.quantity ? product.quantity.toString() : "",
+      uom_id: product.uom_id ? product.uom_id.toString() : "",
     });
     setCategorySearch("");
+    setUomSearch("");
     setModalOpen(true);
   };
 
@@ -122,8 +147,11 @@ const ManageProducts = () => {
       thumbnail_url: "",
       additional_images: [],
       existing_additional_images: [],
+      quantity: "",
+      uom_id: "",
     });
     setCategorySearch("");
+    setUomSearch("");
   };
 
   const handleChange = (e) => {
@@ -155,7 +183,7 @@ const ManageProducts = () => {
   };
 
   const validateForm = () => {
-    const { category_id, name, price, stock_quantity } = formData;
+    const { category_id, name, price, stock_quantity, quantity, uom_id } = formData;
     if (!category_id) {
       Swal.fire("Validation Error", "Category is required", "warning");
       return false;
@@ -170,6 +198,14 @@ const ManageProducts = () => {
     }
     if (!stock_quantity || Number(stock_quantity) < 0) {
       Swal.fire("Validation Error", "Stock quantity cannot be negative", "warning");
+      return false;
+    }
+    if (!quantity || Number(quantity) <= 0) {
+      Swal.fire("Validation Error", "Quantity must be greater than 0", "warning");
+      return false;
+    }
+    if (!uom_id) {
+      Swal.fire("Validation Error", "UOM is required", "warning");
       return false;
     }
     return true;
@@ -201,6 +237,8 @@ const ManageProducts = () => {
       if (formData.existing_additional_images.length > 0) {
         payload.append("existing_additional_images", JSON.stringify(formData.existing_additional_images));
       }
+      if (formData.quantity) payload.append("quantity", formData.quantity);
+      if (formData.uom_id) payload.append("uom_id", formData.uom_id);
       const res = await fetch(url, { method, body: payload });
       if (!res.ok) {
         const errorData = await res.json();
@@ -328,6 +366,9 @@ const ManageProducts = () => {
                 </div>
                 <div className="mb-1 text-gray-700">
                   <span className="font-medium">Stock:</span> {prod.stock_quantity}
+                </div>
+                <div className="mb-1 text-gray-700">
+                  <span className="font-medium">Quantity:</span> {prod.quantity} {prod.uom_name || "N/A"}
                 </div>
                 <div className="mb-2 text-gray-600">
                   <span className="font-medium">Description:</span> {prod.description || "No description"}
@@ -501,6 +542,58 @@ const ManageProducts = () => {
                       required
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#69D84F] focus:border-transparent"
                     />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 mb-1">
+                      Quantity <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      id="quantity"
+                      name="quantity"
+                      value={formData.quantity}
+                      onChange={handleChange}
+                      min="0"
+                      step="0.01"
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#69D84F] focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="uom_id" className="block text-sm font-medium text-gray-700 mb-1">
+                      UOM <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={uoms.find(uom => uom.id.toString() === formData.uom_id)?.uom_name || uomSearch}
+                        onChange={(e) => setUomSearch(e.target.value)}
+                        placeholder="Search or select UOM"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#69D84F] focus:border-transparent"
+                      />
+                      {(uomSearch || formData.uom_id) && (
+                        <ul className="absolute z-50 bg-white border border-gray-300 rounded-lg w-full mt-1 max-h-40 overflow-auto shadow-lg">
+                          {filteredUoms.length === 0 ? (
+                            <li className="p-2 text-gray-500">No UOMs found</li>
+                          ) : (
+                            filteredUoms.map((uom) => (
+                              <li
+                                key={uom.id}
+                                className="cursor-pointer p-2 hover:bg-green-50 text-gray-800"
+                                onClick={() => {
+                                  setFormData((prev) => ({ ...prev, uom_id: uom.id.toString() }));
+                                  setUomSearch(uom.uom_name);
+                                }}
+                              >
+                                {uom.uom_name}
+                              </li>
+                            ))
+                          )}
+                        </ul>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div>
