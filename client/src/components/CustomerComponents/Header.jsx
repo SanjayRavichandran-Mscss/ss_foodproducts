@@ -1,9 +1,17 @@
-// Header.jsx
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { LogOut, User, ShoppingCart, ChevronDown, Search, Menu, X } from "lucide-react";
+import { LogOut, User, ShoppingCart, ChevronDown, Menu, X } from "lucide-react";
+import axios from "axios";
 
-export default function Header({ customerData, onLoginClick, onRegisterClick }) {
+export default function Header({
+  customerData,
+  onLoginClick,
+  onRegisterClick,
+  cartItems,
+  customerId,
+  fetchCart,
+  onCartClick,
+}) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const dropdownRef = useRef(null);
@@ -28,6 +36,57 @@ export default function Header({ customerData, onLoginClick, onRegisterClick }) 
     window.location.reload();
   };
 
+  const handleAddToCart = (productId) => {
+    if (!customerId) {
+      console.error("No customerId available");
+      return;
+    }
+    axios
+      .post(
+        "http://localhost:5000/api/customer/cart",
+        { customerId, productId, quantity: 1 },
+        { headers: { "Origin": "http://localhost:5173" } }
+      )
+      .then(() => fetchCart())
+      .catch((err) => console.error("Failed to add to cart:", err));
+  };
+
+  const updateQuantity = (productId, change) => {
+    const item = cartItems.find((item) => item.product_id === productId);
+    if (item) {
+      const newQuantity = Math.max(1, item.quantity + change);
+      axios
+        .put(
+          "http://localhost:5000/api/customer/cart",
+          { customerId, productId, quantity: newQuantity },
+          { headers: { "Origin": "http://localhost:5173" } }
+        )
+        .then(() => fetchCart())
+        .catch((err) => console.error("Failed to update quantity:", err));
+    }
+  };
+
+  const handleRemoveItem = (productId) => {
+    if (!customerId) {
+      console.error("No customerId available");
+      return;
+    }
+    console.log("Removing item", { customerId, productId });
+    axios
+      .delete(
+        `http://localhost:5000/api/customer/cart?customerId=${customerId}&productId=${productId}`,
+        { headers: { "Origin": "http://localhost:5173" } }
+      )
+      .then((response) => {
+        console.log("Item removed", response.data);
+        fetchCart(); // Refresh cart after successful deletion
+      })
+      .catch((err) => {
+        console.error("Failed to remove item:", err);
+        // Optional: Notify user (e.g., alert("Failed to remove item"));
+      });
+  };
+
   return (
     <header className="bg-white py-3 px-4 md:px-6 shadow-sm flex items-center justify-between fixed top-0 left-0 right-0 z-40">
       <div className="flex items-center">
@@ -44,30 +103,27 @@ export default function Header({ customerData, onLoginClick, onRegisterClick }) 
             alt="Suyambu Stores Logo"
             className="h-10 w-auto object-contain"
           />
+          <span className="hidden md:block ml-2 text-xl font-bold text-green-700">Suyambu Stores</span>
         </Link>
-      </div>
-
-      <div className="hidden md:flex flex-1 max-w-2xl mx-6 lg:mx-10">
-        <div className="relative w-full">
-          <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-            <Search size={18} className="text-gray-400" />
-          </span>
-          <input
-            className="w-full pl-10 pr-4 py-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors"
-            type="text"
-            placeholder="Search for fresh groceries..."
-          />
-        </div>
       </div>
 
       <div className="flex items-center gap-2 md:gap-4">
-        <Link
-          to="/cart"
-          className="bg-green-600 hover:bg-green-700 text-white p-2 md:px-4 md:py-2 rounded-full flex items-center gap-1 md:gap-2 transition-colors"
-        >
-          <ShoppingCart size={18} />
-          <span className="hidden md:block font-medium">Cart</span>
-        </Link>
+        <div className="relative">
+          <button
+            onClick={() => {
+              console.log("Cart clicked, navigating to cart page");
+              onCartClick();
+            }}
+            className="bg-green-600 hover:bg-green-700 text-white p-2 md:px-4 md:py-2 rounded-full flex items-center gap-1 md:gap-2 transition-colors relative"
+          >
+            <ShoppingCart size={18} />
+            {cartItems.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                {cartItems.reduce((sum, item) => sum + item.quantity, 0)}
+              </span>
+            )}
+          </button>
+        </div>
         
         {!customerData ? (
           <div className="flex items-center gap-2">
@@ -94,7 +150,7 @@ export default function Header({ customerData, onLoginClick, onRegisterClick }) 
                 {customerData.full_name.charAt(0).toUpperCase()}
               </div>
               <span className="hidden md:block text-sm font-medium text-gray-700">
-                Hi, {customerData.full_name.split(' ')[0]}
+                Hi, {customerData.full_name.split(" ")[0]}
               </span>
               <ChevronDown size={16} className="text-gray-500" />
             </button>
@@ -138,21 +194,9 @@ export default function Header({ customerData, onLoginClick, onRegisterClick }) 
         )}
       </div>
 
-      {/* Mobile menu */}
       {showMobileMenu && (
         <div className="absolute top-full left-0 right-0 bg-white shadow-lg border-t border-gray-200 md:hidden">
           <div className="p-4">
-            <div className="relative mb-4">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-                <Search size={18} className="text-gray-400" />
-              </span>
-              <input
-                className="w-full pl-10 pr-4 py-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500"
-                type="text"
-                placeholder="Search for fresh groceries..."
-              />
-            </div>
-            
             {!customerData ? (
               <div className="flex flex-col gap-2 pt-2 border-t border-gray-200">
                 <button

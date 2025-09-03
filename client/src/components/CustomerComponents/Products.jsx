@@ -1,41 +1,76 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { ShoppingCart, Heart } from "lucide-react";
+import { ShoppingCart, Heart, Plus, Minus } from "lucide-react";
 
-export default function Products({ isLoggedIn }) {
+export default function Products({ isLoggedIn, customerId, cartItems, setCartItems, fetchCart }) {
   const [products, setProducts] = useState([]);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState("all");
   const [categories, setCategories] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
+    console.log("Products useEffect triggered");
     axios
-      .get("http://localhost:5000/api/admin/products")
+      .get("http://localhost:5000/api/admin/products", {
+        headers: { "Origin": "http://localhost:5173" },
+      })
       .then((res) => {
-        setProducts(res.data);
-        // Extract unique categories from the API response
-        const uniqueCategories = [
-          ...new Set(res.data.map((product) => product.category_name)),
-        ];
+        console.log("Products data fetched", res.data);
+        setProducts(res.data || []);
+        const uniqueCategories = [...new Set(res.data.map((product) => product.category_name))];
         setCategories([{ label: "All Products", value: "all" }, ...uniqueCategories.map(cat => ({
           label: cat,
           value: cat.toLowerCase()
         }))]);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error("Products fetch error", error);
         setErr("Failed to load products");
         setLoading(false);
       });
   }, []);
 
-  const handleAddToCart = (productId) => {
+  const handleAddToCart = (productId, quantity = 1) => {
     if (!isLoggedIn) {
       alert("Please login to add items to cart");
       return;
     }
-    console.log("Add to cart:", productId);
+    if (!customerId) {
+      console.error("No customerId available");
+      return;
+    }
+    console.log("Adding to cart", { customerId, productId, quantity });
+    axios
+      .post(
+        "http://localhost:5000/api/customer/cart",
+        { customerId, productId, quantity },
+        { headers: { "Origin": "http://localhost:5173" } }
+      )
+      .then(() => {
+        console.log("Added to cart successfully");
+        fetchCart();
+      })
+      .catch((err) => console.error("Failed to add to cart:", err));
+  };
+
+  const updateQuantity = (productId, change) => {
+    const item = cartItems.find((item) => item.product_id === productId);
+    if (item) {
+      const newQuantity = Math.max(1, item.quantity + change);
+      axios
+        .put(
+          "http://localhost:5000/api/customer/cart",
+          { customerId, productId, quantity: newQuantity },
+          { headers: { "Origin": "http://localhost:5173" } }
+        )
+        .then(() => fetchCart())
+        .catch((err) => console.error("Failed to update quantity:", err));
+    } else {
+      handleAddToCart(productId, 1); // Add new item if not in cart
+    }
   };
 
   const handleAddToWishlist = (productId) => {
@@ -46,15 +81,18 @@ export default function Products({ isLoggedIn }) {
     console.log("Add to wishlist:", productId);
   };
 
-  // Filter products by selected category
-  const filteredProducts =
-    category === "all"
-      ? products
-      : products.filter(
-          (p) => p.category_name.toLowerCase() === category
-        );
+  const filteredProducts = products
+    .filter(product =>
+      category === "all" || product.category_name.toLowerCase() === category
+    )
+    .filter(product =>
+      product.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+  console.log("Filtered products length", filteredProducts.length);
 
   if (loading) {
+    console.log("Products loading state");
     return (
       <div className="flex justify-center items-center py-8">
         <div className="text-gray-600">Loading products...</div>
@@ -64,37 +102,45 @@ export default function Products({ isLoggedIn }) {
 
   return (
     <div className="container mx-auto px-4">
-      <section>
+      <section id="shop-by-category">
         <h2 className="text-2xl font-bold mb-5 mt-4">Shop by Category</h2>
-        {/* Category Buttons */}
+        <div className="mb-6">
+          <input
+            type="text"
+            placeholder="Search for fresh groceries..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full md:w-1/2 lg:w-1/3 p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+        </div>
         <div className="flex flex-wrap gap-4 mb-8">
           {categories.map((cat) => (
             <button
               key={cat.value}
               onClick={() => setCategory(cat.value)}
               className={`flex items-center gap-2 px-5 py-2 rounded-lg font-semibold shadow-sm text-md transition
-                ${category === cat.value ? 'bg-green-500 text-white' : 'bg-white text-gray-800 border'}
-                hover:bg-green-100`}
+                ${category === cat.value ? "bg-green-600 text-white" : "bg-white text-gray-800 border"}
+                hover:bg-green-400 hover:text-white`}
             >
               {cat.label}
             </button>
           ))}
         </div>
-        {/* Product Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredProducts.length > 0 ? (
             filteredProducts.map((product) => (
               <ProductCard
-                product={product}
                 key={product.id}
+                product={product}
                 isLoggedIn={isLoggedIn}
-                handleAddToCart={handleAddToCart}
+                cartItems={cartItems}
+                updateQuantity={updateQuantity}
                 handleAddToWishlist={handleAddToWishlist}
               />
             ))
           ) : (
             <div className="text-center py-8 text-gray-600 col-span-4">
-              No products available in this category.
+              No products available in this category or search.
             </div>
           )}
         </div>
@@ -104,9 +150,16 @@ export default function Products({ isLoggedIn }) {
   );
 }
 
-function ProductCard({ product, isLoggedIn, handleAddToCart, handleAddToWishlist }) {
+function ProductCard({ product, isLoggedIn, cartItems, updateQuantity, handleAddToWishlist }) {
+  const cartItem = cartItems.find((item) => item.product_id === product.id);
+  const [quantity, setQuantity] = useState(cartItem ? cartItem.quantity : 0);
+
+  useEffect(() => {
+    setQuantity(cartItem ? cartItem.quantity : 0);
+  }, [cartItem]);
+
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow border">
+    <div className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow border border-gray-200">
       <div className="relative">
         <img
           src={product.thumbnail_url || "https://via.placeholder.com/300"}
@@ -130,22 +183,45 @@ function ProductCard({ product, isLoggedIn, handleAddToCart, handleAddToWishlist
           ₹{product.price}
         </span>
         <span className="text-xs text-gray-500 block mb-2">
-          {product.description || 'per item'}
+          {product.description || "per item"}
         </span>
-        <span className="text-xs text-gray-500 block mb-2">
-          Quantity: {product.quantity} {product.uom_name || "N/A"}
-        </span>
-        <button
-          onClick={() => handleAddToCart(product.id)}
-          disabled={!isLoggedIn || product.stock_quantity === 0}
-          className={`w-full flex items-center justify-center gap-2 py-2 px-4 rounded-md transition-colors mt-2
-            ${!isLoggedIn || product.stock_quantity === 0
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-green-600 text-white hover:bg-green-700'}`}
-        >
-          <ShoppingCart size={16} />
-          {!isLoggedIn ? 'Login to Add' : product.stock_quantity === 0 ? 'Out of Stock' : 'Add to Cart'}
-        </button>
+        {isLoggedIn && product.stock_quantity > 0 ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => updateQuantity(product.id, -1)}
+              disabled={quantity <= 0}
+              className={`px-2 py-1 bg-gray-200 rounded hover:bg-gray-300 ${quantity <= 0 ? "cursor-not-allowed opacity-50" : ""}`}
+            >
+              <Minus size={16} />
+            </button>
+            <span className="w-8 text-center">{quantity}</span>
+            <button
+              onClick={() => updateQuantity(product.id, 1)}
+              disabled={quantity >= product.stock_quantity}
+              className={`px-2 py-1 bg-gray-200 rounded hover:bg-gray-300 ${quantity >= product.stock_quantity ? "cursor-not-allowed opacity-50" : ""}`}
+            >
+              <Plus size={16} />
+            </button>
+            <span className="ml-2 font-bold">
+              ₹{(product.price * quantity).toFixed(2)}
+            </span>
+          </div>
+        ) : (
+          <button
+            disabled={!isLoggedIn || product.stock_quantity === 0}
+            className={`w-full flex items-center justify-center gap-2 py-2 px-4 rounded-md transition-colors mt-2
+              ${!isLoggedIn || product.stock_quantity === 0
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-green-600 text-white hover:bg-green-700"}`}
+          >
+            <ShoppingCart size={16} />
+            {!isLoggedIn
+              ? "Login to Add"
+              : product.stock_quantity === 0
+              ? "Out of Stock"
+              : "Add to Cart"}
+          </button>
+        )}
       </div>
     </div>
   );

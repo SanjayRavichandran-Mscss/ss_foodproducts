@@ -6,4 +6,10 @@ router.post('/register', customerController.register);
 router.post('/login', customerController.login);
 router.get('/profile', customerController.getProfile);
 
+// New cart routes
+router.post('/cart', customerController.addToCart);
+router.get('/cart', customerController.getCart);
+router.put('/cart', customerController.updateCartQuantity);
+router.delete('/cart', customerController.deleteFromCart);
+
 module.exports = router;
