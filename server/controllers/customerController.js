@@ -245,3 +245,50 @@ exports.deleteFromCart = async (req, res) => {
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 };
+
+
+
+
+exports.getWishlist = async (req, res) => {
+  const { customerId } = req.query;
+  try {
+    const [rows] = await db.query(
+      `SELECT * FROM wishlist WHERE customer_id = ?`,
+      [customerId]
+    );
+    res.status(200).json(rows);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch wishlist" });
+  }
+};
+
+exports.toggleWishlist = async (req, res) => {
+  const { customerId, productId } = req.body;
+  if (!customerId || !productId) {
+    return res.status(400).json({ error: 'customerId and productId are required' });
+  }
+  try {
+    const [existing] = await db.query(
+      'SELECT * FROM wishlist WHERE customer_id = ? AND product_id = ?',
+      [customerId, productId]
+    );
+    let is_liked;
+    if (existing.length > 0) {
+      is_liked = existing[0].is_liked === 1 ? 0 : 1;
+      await db.query(
+        'UPDATE wishlist SET is_liked = ?, updated_at = NOW() WHERE customer_id = ? AND product_id = ?',
+        [is_liked, customerId, productId]
+      );
+    } else {
+      is_liked = 1;
+      await db.query(
+        'INSERT INTO wishlist (customer_id, product_id, is_liked, added_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())',
+        [customerId, productId, is_liked]
+      );
+    }
+    res.status(200).json({ message: is_liked === 1 ? 'Added to wishlist' : 'Removed from wishlist', is_liked });
+  } catch (error) {
+    console.error('Error toggling wishlist:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

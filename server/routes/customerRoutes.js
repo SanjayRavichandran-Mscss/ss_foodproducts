@@ -12,4 +12,7 @@ router.get('/cart', customerController.getCart);
 router.put('/cart', customerController.updateCartQuantity);
 router.delete('/cart', customerController.deleteFromCart);
 
+router.get('/wishlist', customerController.getWishlist);
+router.post('/wishlist', customerController.toggleWishlist);
+
 module.exports = router;
