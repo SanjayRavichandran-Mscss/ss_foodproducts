@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import Header from "../components/CustomerComponents/Header";
 import Banner from "../components/CustomerComponents/Banner";
 import Products from "../components/CustomerComponents/Products";
+import SingleProduct from "../components/CustomerComponents/SingleProduct";
 import Footer from "../components/CustomerComponents/Footer";
 import CustomerLogin from "../components/Authentication/CustomerLogin";
 import CustomerRegister from "../components/Authentication/CustomerRegister";
@@ -17,12 +18,28 @@ function decodeCustomerId(encodedId) {
   }
 }
 
+function decodeProductId(encodedId) {
+  try {
+    const decoded = atob(encodedId);
+    const idNum = parseInt(decoded, 10);
+    if (isNaN(idNum)) {
+      throw new Error("Invalid product ID");
+    }
+    return idNum.toString(); // Return as string to match existing logic
+  } catch {
+    console.error("Error decoding productId:", encodedId);
+    return null;
+  }
+}
+
 export default function CustomerPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const encodedCustomerId = searchParams.get("customerId");
+  const encodedProductId = searchParams.get("productId");
   const customerId = decodeCustomerId(encodedCustomerId);
+  const productId = decodeProductId(encodedProductId);
 
   const [verified, setVerified] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -30,8 +47,21 @@ export default function CustomerPage() {
   const [showAuthModal, setShowAuthModal] = useState(null);
   const [modalAnimation, setModalAnimation] = useState("");
   const [cartItems, setCartItems] = useState([]);
+  const [wishlist, setWishlist] = useState([]);
   const [showCartModal, setShowCartModal] = useState(false);
   const [cartAnimation, setCartAnimation] = useState("");
+  const [message, setMessage] = useState(null);
+
+  useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => setMessage(null), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
+
+  const showMessage = (msg) => {
+    setMessage(msg);
+  };
 
   useEffect(() => {
     console.log("CustomerPage useEffect triggered", { location: location.pathname, encodedCustomerId, customerId });
@@ -94,6 +124,7 @@ export default function CustomerPage() {
             setCustomerData(data);
             setVerified(true);
             fetchCart();
+            fetchWishlist();
           } else {
             console.error("Token verification failed, clearing storage");
             localStorage.removeItem("customerToken");
@@ -129,6 +160,46 @@ export default function CustomerPage() {
         console.error("Failed to fetch cart:", error);
       }
     }
+  };
+
+  const fetchWishlist = async () => {
+    if (customerId) {
+      try {
+        const response = await fetch(`http://localhost:5000/api/customer/wishlist?customerId=${customerId}`, {
+          headers: { "Origin": "http://localhost:5173" },
+        });
+        const data = await response.json();
+        setWishlist(data.filter(item => item.is_liked === 1).map(item => item.product_id));
+      } catch (error) {
+        console.error("Failed to fetch wishlist:", error);
+      }
+    }
+  };
+
+  const handleToggleWishlist = (productId) => {
+    if (!customerId) {
+      console.error("No customerId available");
+      return;
+    }
+    console.log("Toggling wishlist:", productId);
+    fetch("http://localhost:5000/api/customer/wishlist", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Origin": "http://localhost:5173",
+      },
+      body: JSON.stringify({ customerId, productId }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.is_liked === 1) {
+          setWishlist((prev) => [...prev, productId]);
+        } else {
+          setWishlist((prev) => prev.filter((id) => id !== productId));
+        }
+        showMessage(data.message);
+      })
+      .catch((err) => console.error("Failed to toggle wishlist:", err));
   };
 
   const handleLoginClick = () => {
@@ -242,13 +313,29 @@ export default function CustomerPage() {
       <main className="flex-1 bg-gray-50 pt-20">
         <Banner />
         <div className="md:px-8">
-          <Products
-            isLoggedIn={!!customerData}
-            customerId={customerId}
-            cartItems={cartItems}
-            setCartItems={setCartItems}
-            fetchCart={fetchCart}
-          />
+          {productId ? (
+            <SingleProduct
+              productId={productId}
+              isLoggedIn={!!customerData}
+              customerId={customerId}
+              cartItems={cartItems}
+              fetchCart={fetchCart}
+              wishlist={wishlist}
+              handleToggleWishlist={handleToggleWishlist}
+              showMessage={showMessage}
+            />
+          ) : (
+            <Products
+              isLoggedIn={!!customerData}
+              customerId={customerId}
+              cartItems={cartItems}
+              setCartItems={setCartItems}
+              fetchCart={fetchCart}
+              wishlist={wishlist}
+              handleToggleWishlist={handleToggleWishlist}
+              showMessage={showMessage}
+            />
+          )}
         </div>
       </main>
       
@@ -388,6 +475,12 @@ export default function CustomerPage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+      
+      {message && (
+        <div className="fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-md shadow-lg">
+          {message}
         </div>
       )}
       
