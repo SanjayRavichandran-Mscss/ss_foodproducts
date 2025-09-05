@@ -144,7 +144,15 @@ export default function Products({ isLoggedIn, customerId, cartItems, setCartIte
   );
 }
 
-function ProductCard({ product, isLoggedIn, customerId, cartItems, updateQuantity, handleToggleWishlist, wishlist }) {
+function ProductCard({
+  product,
+  isLoggedIn,
+  customerId,
+  cartItems,
+  updateQuantity,
+  handleToggleWishlist,
+  wishlist
+}) {
   const navigate = useNavigate();
   const cartItem = cartItems.find((item) => item.product_id === product.id);
   const quantity = cartItem ? cartItem.quantity : 0;
@@ -154,7 +162,11 @@ function ProductCard({ product, isLoggedIn, customerId, cartItems, updateQuantit
     const encodedCustomerId = btoa(customerId || "");
     const encodedProductId = btoa(product.id.toString());
     navigate(`/customer?customerId=${encodedCustomerId}&productId=${encodedProductId}`);
+    window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll to top after navigation
   };
+
+  // Show badge for stock left if 5 or fewer items remain and it's not 0
+  const showLowStockBadge = product.stock_quantity > 0 && product.stock_quantity <= 5;
 
   return (
     <div className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow border border-gray-200">
@@ -172,18 +184,26 @@ function ProductCard({ product, isLoggedIn, customerId, cartItems, updateQuantit
         >
           <Heart size={16} className={isLiked ? "text-red-500 fill-red-500" : "text-gray-600"} />
         </button>
+        {showLowStockBadge && (
+          <span className="absolute top-2 left-2 bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full shadow z-10 border border-red-300 animate-pulse">
+            {product.stock_quantity} left
+          </span>
+        )}
       </div>
       <div className="p-4">
         <p className="uppercase text-xs text-gray-500 font-semibold">
           {product.category_name || "Category"}
         </p>
-        <h3 className="text-lg font-medium text-gray-900 mb-2 cursor-pointer" onClick={handleViewProduct}>{product.name}</h3>
+        <h3
+          className="text-lg font-medium text-gray-900 mb-2 cursor-pointer"
+          onClick={handleViewProduct}
+        >
+          {product.name}
+        </h3>
         <span className="font-bold text-green-600 text-xl mb-1 block">
           ₹{product.price}
         </span>
-        <span className="text-xs text-gray-500 block mb-2">
-          {product.description || "per item"}
-        </span>
+        {/* Description intentionally removed */}
         {isLoggedIn && product.stock_quantity > 0 ? (
           <div className="flex items-center gap-2">
             <button

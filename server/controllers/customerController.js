@@ -173,7 +173,7 @@ exports.getCart = async (req, res) => {
   const { customerId } = req.query;
   try {
     const [rows] = await db.query(
-      `SELECT ci.*, p.name AS product_name, p.price 
+      `SELECT ci.*, p.name AS product_name, p.price, p.thumbnail_url, p.stock_quantity 
        FROM cart_items ci 
        JOIN products p ON ci.product_id = p.id 
        WHERE ci.customer_id = ?`,
