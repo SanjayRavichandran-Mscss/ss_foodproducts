@@ -18,9 +18,14 @@ export function CustomerProtectedRoute() {
   const customerId = localStorage.getItem("customerId");
   const location = useLocation();
   
-  // If trying to access /customer/* without login, redirect to root
-  if (location.pathname.startsWith('/customer') && (!customerToken || !customerId)) {
-    return <Navigate to="/" replace />;
+  // Check if the current path requires authentication
+  const isProtectedPath = 
+    location.pathname.startsWith('/customer') || 
+    location.pathname.startsWith('/checkout');
+  
+  // If trying to access protected routes without login, redirect to login
+  if (isProtectedPath && (!customerToken || !customerId)) {
+    return <Navigate to="/" state={{ from: location }} replace />;
   }
   
   return <Outlet />;

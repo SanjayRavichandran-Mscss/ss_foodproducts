@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { LogOut, User, ShoppingCart, ChevronDown, Menu, X } from "lucide-react";
-import axios from "axios";
-import WishList from "./WishList"; // Assuming WishList.jsx is in the same directory or adjust the path accordingly
+import WishList from "./WishList";
 
 export default function Header({
   customerData,
@@ -38,69 +37,92 @@ export default function Header({
     window.location.reload();
   };
 
-  const handleAddToCart = (productId) => {
+  const handleAddToCart = async (productId) => {
     if (!customerId) {
       console.error("No customerId available");
       return;
     }
-    axios
-      .post(
-        "http://localhost:5000/api/customer/cart",
-        { customerId, productId, quantity: 1 },
-        { headers: { "Origin": "http://localhost:5173" } }
-      )
-      .then(() => fetchCart())
-      .catch((err) => console.error("Failed to add to cart:", err));
-  };
-
-  const updateQuantity = (productId, change) => {
-    const item = cartItems.find((item) => item.product_id === productId);
-    if (item) {
-      const newQuantity = Math.max(1, item.quantity + change);
-      axios
-        .put(
-          "http://localhost:5000/api/customer/cart",
-          { customerId, productId, quantity: newQuantity },
-          { headers: { "Origin": "http://localhost:5173" } }
-        )
-        .then(() => fetchCart())
-        .catch((err) => console.error("Failed to update quantity:", err));
-    }
-  };
-
-  const handleRemoveItem = (productId) => {
-    if (!customerId) {
-      console.error("No customerId available");
-      return;
-    }
-    console.log("Removing item", { customerId, productId });
-    axios
-      .delete(
-        `http://localhost:5000/api/customer/cart?customerId=${customerId}&productId=${productId}`,
-        { headers: { "Origin": "http://localhost:5173" } }
-      )
-      .then((response) => {
-        console.log("Item removed", response.data);
-        fetchCart(); // Refresh cart after successful deletion
-      })
-      .catch((err) => {
-        console.error("Failed to remove item:", err);
-        // Optional: Notify user (e.g., alert("Failed to remove item"));
+    try {
+      const token = localStorage.getItem("customerToken");
+      await fetch("http://localhost:5000/api/customer/cart", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Origin": "http://localhost:5173",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ customerId, productId, quantity: 1 }),
       });
+      await fetchCart();
+    } catch (err) {
+      console.error("Failed to add to cart:", err);
+    }
+  };
+
+  const updateQuantity = async (productId, change) => {
+    const item = cartItems.find((item) => item.product_id === productId);
+    if (!item) return;
+    const newQuantity = Math.max(1, item.quantity + change);
+    try {
+      const token = localStorage.getItem("customerToken");
+      const response = await fetch("http://localhost:5000/api/customer/cart", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Origin": "http://localhost:5173",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ customerId, productId, quantity: newQuantity }),
+      });
+      if (response.ok) {
+        await fetchCart();
+      } else {
+        console.error("Failed to update quantity:", response.statusText);
+      }
+    } catch (err) {
+      console.error("Failed to update quantity:", err);
+    }
+  };
+
+  const handleRemoveItem = async (productId) => {
+    if (!customerId) {
+      console.error("No customerId available");
+      return;
+    }
+    try {
+      const token = localStorage.getItem("customerToken");
+      const response = await fetch(
+        `http://localhost:5000/api/customer/cart?customerId=${customerId}&productId=${productId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            "Origin": "http://localhost:5173",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      if (response.ok) {
+        await fetchCart();
+      } else {
+        console.error("Delete request failed:", response.statusText);
+      }
+    } catch (err) {
+      console.error("Failed to remove item:", err);
+    }
   };
 
   return (
     <>
       <header className="bg-white py-3 px-4 md:px-6 shadow-sm flex items-center justify-between fixed top-0 left-0 right-0 z-40">
         <div className="flex items-center">
-          <button 
-            className="md:hidden mr-3 p-1 rounded-md text-gray-600 hover:text-green-600 hover:bg-gray-100"
+          <button
+            className="md:hidden mr-3 p-1 rounded-md text-gray-600 hover:text-green-600 hover:bg-gray-100 cursor-pointer"
             onClick={() => setShowMobileMenu(!showMobileMenu)}
           >
             {showMobileMenu ? <X size={24} /> : <Menu size={24} />}
           </button>
-          
-          <Link to="/" className="flex items-center">
+          <Link to="/" className="flex items-center cursor-pointer">
             <img
               src="/Assets/Suyambu_Eng_logo.png"
               alt="Suyambu Stores Logo"
@@ -112,11 +134,8 @@ export default function Header({
         <div className="flex items-center gap-2 md:gap-4">
           <div className="relative">
             <button
-              onClick={() => {
-                console.log("Cart clicked, navigating to cart page");
-                onCartClick();
-              }}
-              className="bg-green-600 hover:bg-green-700 text-white p-2 md:px-4 md:py-2 rounded-full flex items-center gap-1 md:gap-2 transition-colors relative"
+              onClick={onCartClick}
+              className="bg-green-600 hover:bg-green-700 text-white p-2 md:px-4 md:py-2 rounded-full flex items-center gap-1 md:gap-2 transition-colors relative cursor-pointer"
             >
               <ShoppingCart size={18} />
               {cartItems.length > 0 && (
@@ -126,18 +145,18 @@ export default function Header({
               )}
             </button>
           </div>
-          
+
           {!customerData ? (
             <div className="flex items-center gap-2">
               <button
                 onClick={onLoginClick}
-                className="bg-white border border-green-600 text-green-600 hover:bg-green-50 px-3 py-1.5 rounded-full text-sm font-medium transition-colors"
+                className="bg-white border border-green-600 text-green-600 hover:bg-green-50 px-3 py-1.5 rounded-full text-sm font-medium transition-colors cursor-pointer"
               >
                 Login
               </button>
               <button
                 onClick={onRegisterClick}
-                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-full text-sm font-medium transition-colors hidden sm:block"
+                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-full text-sm font-medium transition-colors hidden sm:block cursor-pointer"
               >
                 Register
               </button>
@@ -146,7 +165,7 @@ export default function Header({
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setShowDropdown(!showDropdown)}
-                className="flex items-center gap-2 p-1 md:px-3 md:py-2 rounded-full hover:bg-gray-100 transition-colors"
+                className="flex items-center gap-2 p-1 md:px-3 md:py-2 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
               >
                 <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-800 font-medium">
                   {customerData.full_name.charAt(0).toUpperCase()}
@@ -156,25 +175,24 @@ export default function Header({
                 </span>
                 <ChevronDown size={16} className="text-gray-500" />
               </button>
-              
+
               {showDropdown && (
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg z-50 overflow-hidden border border-gray-200">
                   <div className="p-4 border-b border-gray-100">
                     <div className="font-medium text-gray-900">{customerData.full_name}</div>
                     <div className="text-xs text-gray-500 mt-1">{customerData.email}</div>
                   </div>
-                  
                   <div className="p-2">
                     <Link
                       to="/profile"
-                      className="block px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 text-sm"
+                      className="block px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 text-sm cursor-pointer"
                       onClick={() => setShowDropdown(false)}
                     >
                       My Account
                     </Link>
                     <Link
                       to="/orders"
-                      className="block px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 text-sm"
+                      className="block px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 text-sm cursor-pointer"
                       onClick={() => setShowDropdown(false)}
                     >
                       My Orders
@@ -184,16 +202,15 @@ export default function Header({
                         setShowDropdown(false);
                         setShowWishlist(true);
                       }}
-                      className="block w-full text-left px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 text-sm"
+                      className="block w-full text-left px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 text-sm cursor-pointer"
                     >
                       My Wishlist
                     </button>
                   </div>
-                  
                   <div className="p-2 border-t border-gray-100">
                     <button
                       onClick={handleLogout}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 text-sm"
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 text-sm cursor-pointer"
                     >
                       <LogOut size={16} />
                       Logout
@@ -212,13 +229,13 @@ export default function Header({
                 <div className="flex flex-col gap-2 pt-2 border-t border-gray-200">
                   <button
                     onClick={onLoginClick}
-                    className="w-full bg-white border border-green-600 text-green-600 hover:bg-green-50 px-4 py-2 rounded-full font-medium"
+                    className="w-full bg-white border border-green-600 text-green-600 hover:bg-green-50 px-4 py-2 rounded-full font-medium cursor-pointer"
                   >
                     Login
                   </button>
                   <button
                     onClick={onRegisterClick}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full font-medium"
+                    className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full font-medium cursor-pointer"
                   >
                     Register
                   </button>
@@ -232,14 +249,14 @@ export default function Header({
                   <div className="flex flex-col gap-2">
                     <Link
                       to="/profile"
-                      className="text-center block px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100"
+                      className="text-center block px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 cursor-pointer"
                       onClick={() => setShowMobileMenu(false)}
                     >
                       My Account
                     </Link>
                     <Link
                       to="/orders"
-                      className="text-center block px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100"
+                      className="text-center block px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 cursor-pointer"
                       onClick={() => setShowMobileMenu(false)}
                     >
                       My Orders
@@ -249,13 +266,13 @@ export default function Header({
                         setShowMobileMenu(false);
                         setShowWishlist(true);
                       }}
-                      className="text-center block px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100"
+                      className="text-center block px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 cursor-pointer"
                     >
                       My Wishlist
                     </button>
                     <button
                       onClick={handleLogout}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 cursor-pointer"
                     >
                       <LogOut size={16} />
                       Logout

@@ -85,7 +85,7 @@ export default function SingleProduct({
         headers: { Origin: "http://localhost:5173" },
       })
       .then((res) => {
-        setProduct(res.data);
+        setProduct({ ...res.data, price: parseFloat(res.data.price) });
         setLoading(false);
       })
       .catch(() => {
@@ -146,6 +146,8 @@ export default function SingleProduct({
       showMessage("Please login to proceed with purchase");
       return;
     }
+    console.log("order method: buy_now");
+    const encodedCustomerId = btoa(customerId);
     const item = cartItems.find((item) => item.product_id === product.id);
     if (!item) {
       axios
@@ -156,11 +158,15 @@ export default function SingleProduct({
         )
         .then(() => {
           fetchCart();
-          navigate("/checkout");
+          navigate(`/checkout?customerId=${encodedCustomerId}&identifier=buy_now`, {
+            state: { product: { ...product, quantity }, orderMethod: "buy_now" },
+          });
         })
         .catch(() => showMessage("Failed to proceed with purchase"));
     } else {
-      navigate("/checkout");
+      navigate(`/checkout?customerId=${encodedCustomerId}&identifier=buy_now`, {
+        state: { product: { ...product, quantity }, orderMethod: "buy_now" },
+      });
     }
   };
 
@@ -289,7 +295,6 @@ export default function SingleProduct({
                   }}
                 />
               )}
-      
             </div>
           </div>
         </div>

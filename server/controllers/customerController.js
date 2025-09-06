@@ -1,8 +1,48 @@
+
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
+const url = require('url');
 
 const SESSIONS = new Map(); // Store active sessions
+
+// Helper function to decode customerId from base64
+function getDecodedCustomerId(req) {
+  const customerIdBase64 = req.query.customerId;
+  if (!customerIdBase64) {
+    return null;
+  }
+  
+  try {
+    // First try to decode as base64
+    try {
+      const customerId = parseInt(Buffer.from(customerIdBase64, 'base64').toString('utf-8'), 10);
+      if (!isNaN(customerId)) {
+        return customerId;
+      }
+    } catch (base64Error) {
+      console.log('Not a base64 encoded ID, trying raw value');
+    }
+    
+    // If base64 decoding fails, try to parse as raw integer
+    const customerId = parseInt(customerIdBase64, 10);
+    return isNaN(customerId) ? null : customerId;
+  } catch (error) {
+    console.error('Error decoding customerId:', error);
+    return null;
+  }
+}
+
+// Helper function to check if customer exists
+async function checkCustomerExists(customerId) {
+  try {
+    const [rows] = await db.query('SELECT id FROM customers WHERE id = ?', [customerId]);
+    return rows.length > 0;
+  } catch (error) {
+    console.error('Error checking customer existence:', error);
+    return false;
+  }
+}
 
 exports.register = async (req, res) => {
   const { username, email, password, full_name, phone } = req.body;
@@ -111,7 +151,6 @@ exports.login = async (req, res) => {
   }
 };
 
-
 exports.getProfile = async (req, res) => {
   const authHeader = req.headers.authorization;
   const customerId = req.query.customerId;
@@ -198,8 +237,6 @@ exports.updateCartQuantity = async (req, res) => {
   }
 };
 
-
-
 exports.deleteFromCart = async (req, res) => {
   const { customerId, productId } = req.query;
 
@@ -246,9 +283,6 @@ exports.deleteFromCart = async (req, res) => {
   }
 };
 
-
-
-
 exports.getWishlist = async (req, res) => {
   const { customerId } = req.query;
   try {
@@ -290,5 +324,200 @@ exports.toggleWishlist = async (req, res) => {
   } catch (error) {
     console.error('Error toggling wishlist:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Address management methods
+exports.getAddresses = async (req, res) => {
+  const customerId = getDecodedCustomerId(req);
+
+  if (!customerId || isNaN(customerId)) {
+    return res.status(400).json({ message: 'Invalid customer ID' });
+  }
+
+  try {
+    // Check if customer exists
+    if (!(await checkCustomerExists(customerId))) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    const [rows] = await db.query(
+      'SELECT id, street, city, state, zip_code, country, is_default FROM addresses WHERE customer_id = ?',
+      [customerId]
+    );
+    res.status(200).json(rows);
+  } catch (error) {
+    console.error('Get addresses error:', error);
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
+
+exports.addAddress = async (req, res) => {
+  const customerId = getDecodedCustomerId(req);
+  if (!customerId) {
+    return res.status(400).json({ message: 'Customer ID is required' });
+  }
+
+  const { street, city, state, zip_code, country, is_default } = req.body;
+
+  // Input validation
+  if (!street || street.length > 255) {
+    return res.status(400).json({ message: 'Street is required and must be 255 characters or less' });
+  }
+  if (!city || city.length > 100) {
+    return res.status(400).json({ message: 'City is required and must be 100 characters or less' });
+  }
+  if (!state || state.length > 100) {
+    return res.status(400).json({ message: 'State is required and must be 100 characters or less' });
+  }
+  if (!zip_code || zip_code.length > 20) {
+    return res.status(400).json({ message: 'Zip code is required and must be 20 characters or less' });
+  }
+  if (!country || country.length > 100) {
+    return res.status(400).json({ message: 'Country is required and must be 100 characters or less' });
+  }
+
+  try {
+    // Check if customer exists
+    if (!(await checkCustomerExists(customerId))) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    // If is_default is true, set all other addresses to non-default
+    if (is_default === 1 || is_default === true) {
+      await db.query('UPDATE addresses SET is_default = 0 WHERE customer_id = ?', [customerId]);
+    }
+
+    const [result] = await db.query(
+      'INSERT INTO addresses (customer_id, street, city, state, zip_code, country, is_default, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
+      [customerId, street, city, state, zip_code, country, is_default ? 1 : 0]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(500).json({ message: 'Failed to add address' });
+    }
+
+    console.log(`Address added for customer ${customerId}, ID: ${result.insertId}`);
+    res.status(201).json({ message: 'Address added successfully', id: result.insertId });
+  } catch (error) {
+    console.error('Add address error:', error);
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
+
+exports.updateAddress = async (req, res) => {
+  const customerId = getDecodedCustomerId(req);
+  if (!customerId) {
+    return res.status(400).json({ message: 'Customer ID is required' });
+  }
+
+  const { id, street, city, state, zip_code, country, is_default } = req.body;
+
+  if (!id || isNaN(id)) {
+    return res.status(400).json({ message: 'Address ID is required' });
+  }
+
+  // Input validation
+  if (!street || street.length > 255) {
+    return res.status(400).json({ message: 'Street is required and must be 255 characters or less' });
+  }
+  if (!city || city.length > 100) {
+    return res.status(400).json({ message: 'City is required and must be 100 characters or less' });
+  }
+  if (!state || state.length > 100) {
+    return res.status(400).json({ message: 'State is required and must be 100 characters or less' });
+  }
+  if (!zip_code || zip_code.length > 20) {
+    return res.status(400).json({ message: 'Zip code is required and must be 20 characters or less' });
+  }
+  if (!country || country.length > 100) {
+    return res.status(400).json({ message: 'Country is required and must be 100 characters or less' });
+  }
+
+  try {
+    // Check if customer exists
+    if (!(await checkCustomerExists(customerId))) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    // Check if address exists and belongs to customer
+    const [existing] = await db.query('SELECT * FROM addresses WHERE id = ? AND customer_id = ?', [id, customerId]);
+    if (existing.length === 0) {
+      return res.status(404).json({ message: 'Address not found' });
+    }
+
+    // If is_default is true, set all other addresses to non-default
+    if (is_default === 1 || is_default === true) {
+      await db.query('UPDATE addresses SET is_default = 0 WHERE customer_id = ? AND id != ?', [customerId, id]);
+    }
+
+    const [result] = await db.query(
+      'UPDATE addresses SET street = ?, city = ?, state = ?, zip_code = ?, country = ?, is_default = ?, updated_at = NOW() WHERE id = ? AND customer_id = ?',
+      [street, city, state, zip_code, country, is_default ? 1 : 0, id, customerId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(500).json({ message: 'Failed to update address' });
+    }
+
+    console.log(`Address updated: ID ${id} for customer ${customerId}`);
+    res.status(200).json({ message: 'Address updated successfully' });
+  } catch (error) {
+    console.error('Update address error:', error);
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
+
+exports.deleteAddress = async (req, res) => {
+  const customerId = getDecodedCustomerId(req);
+  if (!customerId) {
+    return res.status(400).json({ message: 'Customer ID is required' });
+  }
+
+  const parsedUrl = url.parse(req.url, true);
+  const id = parseInt(parsedUrl.query.id, 10);
+
+  if (!id || isNaN(id)) {
+    return res.status(400).json({ message: 'Address ID is required' });
+  }
+
+  try {
+    // Check if customer exists
+    if (!(await checkCustomerExists(customerId))) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    const [result] = await db.query('DELETE FROM addresses WHERE id = ? AND customer_id = ?', [id, customerId]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Address not found' });
+    }
+
+    console.log(`Address deleted: ID ${id} for customer ${customerId}`);
+    res.status(200).json({ message: 'Address deleted successfully' });
+  } catch (error) {
+    console.error('Delete address error:', error);
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
+
+exports.getCustomerDetails = async (req, res) => {
+  const customerId = getDecodedCustomerId(req);
+
+  if (!customerId || isNaN(customerId)) {
+    return res.status(400).json({ message: 'Invalid customer ID' });
+  }
+
+  try {
+    const [rows] = await db.query(
+      'SELECT full_name, phone FROM customers WHERE id = ?',
+      [customerId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+    res.status(200).json(rows[0]);
+  } catch (error) {
+    console.error('Get customer details error:', error);
+    res.status(500).json({ message: 'Server error: ' + error.message });
   }
 };
