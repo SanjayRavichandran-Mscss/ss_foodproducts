@@ -25,8 +25,11 @@ router.delete('/addresses', customerController.deleteAddress);
 // Customer details route
 router.get('/customer-details', customerController.getCustomerDetails);
 
-
 // Order routes
 router.post('/orders', customerController.placeOrder);
 router.get('/orders', customerController.getOrders);
+
+// Invoice routes (now returns HTML for frontend PDF generation)
+router.get('/invoice/:orderId/data', customerController.getInvoiceData);
+
 module.exports = router;

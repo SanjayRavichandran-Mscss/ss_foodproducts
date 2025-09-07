@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Confirmation - Suyambu Stores</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            line-height: 1.7;
+            color: #374151;
+            background-color: #f9fafb;
+        }
+        
+        .email-container {
+            max-width: 600px;
+            margin: 30px auto;
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+            position: relative;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="10" cy="10" r="2" fill="rgba(255,255,255,0.1)"/></pattern></defs><rect width="100" height="100" fill="url(%23dots)"/></svg>');
+        }
+        
+        .logo-section {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .logo {
+            height: 50px;
+            margin-bottom: 15px;
+            filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .header p {
+            font-size: 16px;
+            opacity: 0.95;
+            font-weight: 500;
+        }
+        
+        .content {
+            padding: 40px 30px;
+        }
+        
+        .greeting {
+            font-size: 20px;
+            margin-bottom: 25px;
+            color: #065f46;
+            font-weight: 600;
+        }
+        
+        .main-message {
+            font-size: 16px;
+            margin-bottom: 30px;
+            line-height: 1.8;
+            color: #4b5563;
+        }
+        
+        .order-info {
+            background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+            padding: 30px;
+            border-radius: 12px;
+            margin: 30px 0;
+            border-left: 5px solid #10b981;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1);
+        }
+        
+        .order-info h3 {
+            color: #065f46;
+            margin-bottom: 20px;
+            font-size: 20px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+        }
+        
+        .order-info h3::before {
+            content: '🛒';
+            margin-right: 10px;
+            font-size: 24px;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 12px 0;
+            font-size: 15px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(16, 185, 129, 0.1);
+        }
+        
+        .info-row:last-child {
+            border-bottom: none;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 2px solid #10b981;
+        }
+        
+        .info-row span:first-child {
+            color: #6b7280;
+            font-weight: 500;
+        }
+        
+        .info-row strong {
+            color: #065f46;
+            font-weight: 700;
+            font-size: 16px;
+        }
+        
+        .message {
+            margin: 25px 0;
+            line-height: 1.8;
+            font-size: 15px;
+            color: #4b5563;
+        }
+        
+        .features {
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            margin: 30px 0;
+            border: 2px solid #ecfdf5;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.08);
+        }
+        
+        .features h3 {
+            color: #065f46;
+            margin-bottom: 20px;
+            font-size: 18px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+        }
+        
+        .features h3::before {
+            content: '✨';
+            margin-right: 10px;
+            font-size: 20px;
+        }
+        
+        .features ul {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .features li {
+            padding: 10px 0;
+            padding-left: 30px;
+            position: relative;
+            font-size: 14px;
+            color: #4b5563;
+            line-height: 1.6;
+        }
+        
+        .features li:before {
+            content: "✓";
+            color: #10b981;
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+            font-size: 16px;
+            top: 8px;
+        }
+        
+        .cta-section {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            margin: 30px 0;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            background: white;
+            color: #065f46;
+            padding: 12px 30px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transition: transform 0.2s ease;
+        }
+        
+        .cta-button:hover {
+            transform: translateY(-2px);
+        }
+        
+        .footer {
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+        
+        .footer-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 25px;
+            text-align: left;
+        }
+        
+        .footer h4 {
+            color: #10b981;
+            margin-bottom: 15px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .footer p {
+            font-size: 13px;
+            opacity: 0.9;
+            margin: 5px 0;
+            line-height: 1.6;
+        }
+        
+        .social-links {
+            margin-top: 25px;
+            text-align: center;
+        }
+        
+        .social-links a {
+            color: #10b981;
+            text-decoration: none;
+            margin: 0 15px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #10b981, transparent);
+            margin: 25px 0;
+        }
+        
+        .emoji {
+            font-size: 20px;
+            margin-right: 8px;
+        }
+        
+        @media (max-width: 600px) {
+            .email-container {
+                margin: 10px;
+                border-radius: 12px;
+            }
+            
+            .header,
+            .content,
+            .footer {
+                padding: 30px 20px;
+            }
+            
+            .footer-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
+                text-align: center;
+            }
+            
+            .info-row {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+            
+            .order-info,
+            .features {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <div class="logo-section">
+                <img src="{{baseUrl}}/assets/Suyambu_Eng_logo.png" alt="Suyambu Stores" class="logo">
+                <h1>🎉 Order Confirmed!</h1>
+                <p>Thank you for choosing Suyambu Stores!</p>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="greeting">
+                Hello {{customerName}}! 👋
+            </div>
+            
+            <div class="main-message">
+                <p><strong>Fantastic news!</strong> 🎊 We've successfully received your order and we're absolutely thrilled to be part of your shopping journey. Our team is already working hard to get your items ready for shipment!</p>
+            </div>
+            
+            <div class="order-info">
+                <h3>Order Summary</h3>
+                <div class="info-row">
+                    <span>📝 Order Number:</span>
+                    <strong>#{{orderId}}</strong>
+                </div>
+                <div class="info-row">
+                    <span>📅 Order Date:</span>
+                    <span>{{orderDate}}</span>
+                </div>
+                <div class="info-row">
+                    <span>💰 Total Amount:</span>
+                    <strong>₹{{totalAmount}}</strong>
+                </div>
+            </div>
+            
+            <div class="message">
+                <p>🚀 <strong>What happens next?</strong></p>
+                <p>Your order is currently being processed by our dedicated fulfillment team. You'll receive a shipping confirmation email with tracking details once your package is on its way to you.</p>
+                <p>📄 We've also attached your detailed invoice to this email for your records. Feel free to download and keep it for future reference!</p>
+            </div>
+            
+            <div class="features">
+                <h3>Your Order Journey</h3>
+                <ul>
+                    <li><strong>Order Processing:</strong> 1-2 business days ⏰</li>
+                    <li><strong>Shipping:</strong> 2-3 business days after processing 🚚</li>
+                    <li><strong>Tracking:</strong> Real-time updates via email & SMS 📱</li>
+                    <li><strong>Delivery:</strong> Safe & secure to your doorstep 🏠</li>
+                    <li><strong>Returns:</strong> 7-day hassle-free returns if needed 🔄</li>
+                </ul>
+            </div>
+            
+            <div class="cta-section">
+                <h3 style="color: white; margin-bottom: 15px;">📦 Track Your Order</h3>
+                <a href="{{baseUrl}}/track-order/{{orderId}}" class="cta-button">
+                    Track Order Status
+                </a>
+            </div>
+            
+            <div class="message">
+                <p><span class="emoji">💬</span><strong>Need Help?</strong></p>
+                <p>Our friendly customer support team is here to help! If you have any questions about your order, don't hesitate to reach out to us. We're committed to making your shopping experience exceptional.</p>
+            </div>
+            
+            <div class="message" style="text-align: center; margin-top: 40px;">
+                <p style="font-size: 18px; font-weight: 600; color: #065f46;">
+                    <span class="emoji">🙏</span>Thank you for choosing Suyambu Stores!
+                </p>
+                <p style="font-size: 14px; color: #6b7280; margin-top: 10px;">
+                    We appreciate your business and trust in our products.
+                </p>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <div class="footer-content">
+                <div>
+                    <h4>📞 Get in Touch</h4>
+                    <p>📧 Email: support@suyambustores.com</p>
+                    <p>📱 Phone: +91 98765 43210</p>
+                    <p>💬 WhatsApp: +91 98765 43210</p>
+                    <p>🌐 Website: www.suyambustores.com</p>
+                </div>
+                <div>
+                    <h4>🛡️ Our Promise</h4>
+                    <p>✅ Quality Products</p>
+                    <p>🚚 Fast & Free Shipping</p>
+                    <p>💯 100% Satisfaction Guarantee</p>
+                    <p>🔒 Secure Shopping Experience</p>
+                </div>
+            </div>
+            
+            <div class="divider"></div>
+            
+            <div class="social-links">
+                <p style="margin-bottom: 15px; font-size: 14px;">Follow us for updates & exclusive offers! 🎊</p>
+                <a href="#">📘 Facebook</a>
+                <a href="#">📷 Instagram</a>
+                <a href="#">🐦 Twitter</a>
+                <a href="#">📺 YouTube</a>
+            </div>
+            
+            <p style="margin-top: 25px; font-size: 12px; opacity: 0.7;">
+                © 2025 Suyambu Stores. All rights reserved. 🏪<br>
+                This email was sent to {{customerEmail}}
+            </p>
+        </div>
+    </div>
+</body>
+</html>

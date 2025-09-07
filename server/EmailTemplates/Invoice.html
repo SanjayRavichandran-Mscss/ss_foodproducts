@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice - Suyambu Stores</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            line-height: 1.6;
+            color: #1f2937;
+            background-color: #f9fafb;
+            font-size: 14px;
+        }
+
+        .invoice-container {
+            max-width: 800px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 25px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .invoice-header {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .invoice-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            opacity: 0.3;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .logo {
+            height: 60px;
+            margin-right: 15px;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+        }
+
+        .company-name {
+            font-size: 32px;
+            font-weight: 700;
+            margin: 0;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .invoice-title {
+            font-size: 28px;
+            margin-top: 15px;
+            opacity: 0.95;
+            font-weight: 600;
+            letter-spacing: 2px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .invoice-info {
+            padding: 40px 30px;
+            background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+            border-bottom: 3px solid #10b981;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-bottom: 30px;
+        }
+
+        .info-section h3 {
+            color: #065f46;
+            font-size: 18px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #d1fae5;
+            padding-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .info-section p {
+            margin: 8px 0;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .info-section strong {
+            color: #064e3b;
+            font-weight: 600;
+        }
+
+        .invoice-details {
+            background: #ffffff;
+            padding: 25px;
+            border-radius: 10px;
+            border: 2px solid #d1fae5;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 12px 0;
+            font-size: 14px;
+            padding: 5px 0;
+        }
+
+        .detail-row.highlight {
+            font-weight: 700;
+            color: #065f46;
+            font-size: 16px;
+            border-top: 2px solid #10b981;
+            padding-top: 15px;
+            margin-top: 20px;
+        }
+
+        .detail-row span:first-child {
+            color: #6b7280;
+        }
+
+        .detail-row span:last-child {
+            font-weight: 600;
+            color: #111827;
+        }
+
+        .items-section {
+            padding: 40px 30px;
+        }
+
+        .items-title {
+            color: #065f46;
+            font-size: 24px;
+            margin-bottom: 25px;
+            text-align: center;
+            border-bottom: 3px solid #d1fae5;
+            padding-bottom: 15px;
+            font-weight: 700;
+        }
+
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .items-table th {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 18px 15px;
+            text-align: left;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .items-table td {
+            padding: 15px;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 14px;
+            vertical-align: top;
+        }
+
+        .items-table tr:nth-child(even) {
+            background-color: #f8fffe;
+        }
+
+        .items-table tr:hover {
+            background-color: #ecfdf5;
+            transition: background-color 0.2s ease;
+        }
+
+        .product-info {
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 5px;
+        }
+
+        .product-id {
+            font-size: 12px;
+            color: #6b7280;
+            font-style: italic;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .total-section {
+            background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+            padding: 30px;
+            border-radius: 12px;
+            margin-top: 30px;
+            border: 2px solid #d1fae5;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 10px 0;
+            font-size: 15px;
+            padding: 8px 0;
+        }
+
+        .total-row.final {
+            border-top: 3px solid #10b981;
+            padding-top: 15px;
+            margin-top: 20px;
+            font-size: 20px;
+            font-weight: 700;
+            color: #065f46;
+        }
+
+        .total-row span:first-child {
+            color: #374151;
+            font-weight: 500;
+        }
+
+        .total-row span:last-child {
+            font-weight: 600;
+            color: #111827;
+        }
+
+        .payment-info {
+            background: #ffffff;
+            padding: 25px;
+            border-radius: 10px;
+            margin-top: 25px;
+            border-left: 4px solid #10b981;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
+        }
+
+        .payment-info h3 {
+            color: #065f46;
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .payment-info p {
+            margin: 8px 0;
+            font-size: 14px;
+        }
+
+        .payment-info strong {
+            color: #111827;
+        }
+
+        .footer {
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .footer-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 20px;
+        }
+
+        .footer h4 {
+            color: #10b981;
+            margin-bottom: 12px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .footer p {
+            font-size: 13px;
+            opacity: 0.9;
+            margin: 5px 0;
+            line-height: 1.5;
+        }
+
+        .thank-you {
+            font-size: 18px;
+            color: #10b981;
+            font-weight: 700;
+            margin-top: 25px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #10b981, transparent);
+            margin: 20px 0;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #dcfce7;
+            color: #166534;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .info-grid,
+            .footer-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .invoice-container {
+                margin: 10px;
+                border-radius: 8px;
+            }
+            
+            .invoice-header {
+                padding: 30px 20px;
+            }
+            
+            .company-name {
+                font-size: 24px;
+            }
+            
+            .invoice-title {
+                font-size: 20px;
+            }
+            
+            .invoice-info,
+            .items-section,
+            .footer {
+                padding: 30px 20px;
+            }
+            
+            .items-table th,
+            .items-table td {
+                padding: 10px 8px;
+                font-size: 12px;
+            }
+            
+            .total-section {
+                padding: 20px;
+            }
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+            
+            .invoice-container {
+                box-shadow: none;
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-container">
+        <!-- Header -->
+        <div class="invoice-header">
+            <div class="logo-section">
+                <img src="{{baseUrl}}/assets/Suyambu_Eng_logo.png" alt="Suyambu Stores Logo" class="logo">
+                <h1 class="company-name">Suyambu Stores</h1>
+            </div>
+            <h2 class="invoice-title">INVOICE</h2>
+        </div>
+
+        <!-- Invoice Information -->
+        <div class="invoice-info">
+            <div class="info-grid">
+                <div class="info-section">
+                    <h3>📧 Bill To:</h3>
+                    <p><strong>{{customerName}}</strong></p>
+                    <p>{{customerEmail}}</p>
+                    <p>{{customerMobile}}</p>
+                    <p>{{deliveryAddress}}</p>
+                </div>
+                <div class="info-section">
+                    <h3>🏪 From:</h3>
+                    <p><strong>Suyambu Stores</strong></p>
+                    <p>Email: info@suyambustores.com</p>
+                    <p>Phone: +91 98765 43210</p>
+                    <p>Address: 123 Main Street</p>
+                    <p>Chennai, Tamil Nadu 600001</p>
+                </div>
+            </div>
+            
+            <div class="invoice-details">
+                <div class="detail-row">
+                    <span>📄 Invoice Number:</span>
+                    <span><strong>INV-{{orderId}}</strong></span>
+                </div>
+                <div class="detail-row">
+                    <span>🛒 Order ID:</span>
+                    <span><strong>#{{orderId}}</strong></span>
+                </div>
+                <div class="detail-row">
+                    <span>📅 Invoice Date:</span>
+                    <span>{{invoiceDate}}</span>
+                </div>
+                <div class="detail-row">
+                    <span>🗓️ Order Date:</span>
+                    <span>{{orderDate}}</span>
+                </div>
+                <div class="detail-row">
+                    <span>💳 Payment Method:</span>
+                    <span>{{paymentMethod}}</span>
+                </div>
+                <div class="detail-row">
+                    <span>📦 Order Method:</span>
+                    <span style="text-transform: capitalize;">{{orderMethod}}</span>
+                </div>
+                <div class="detail-row highlight">
+                    <span>📋 Order Status:</span>
+                    <span>{{orderStatus}}<span class="badge">CONFIRMED</span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Items Section -->
+        <div class="items-section">
+            <h2 class="items-title">📦 Order Items</h2>
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th style="width: 50%;">Item Details</th>
+                        <th class="text-center" style="width: 15%;">Quantity</th>
+                        <th class="text-right" style="width: 17.5%;">Unit Price</th>
+                        <th class="text-right" style="width: 17.5%;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#items}}
+                    <tr>
+                        <td>
+                            <div class="product-info">{{name}}</div>
+                            <div class="product-id">Product ID: #{{product_id}}</div>
+                        </td>
+                        <td class="text-center">{{quantity}}</td>
+                        <td class="text-right">₹{{unitPrice}}</td>
+                        <td class="text-right"><strong>₹{{subtotal}}</strong></td>
+                    </tr>
+                    {{/items}}
+                </tbody>
+            </table>
+
+            <div class="total-section">
+                <div class="total-row">
+                    <span>💰 Subtotal:</span>
+                    <span>₹{{subtotal}}</span>
+                </div>
+                <div class="total-row">
+                    <span>🚚 Shipping:</span>
+                    <span>{{#if freeShipping}}FREE 🎉{{else}}₹{{shipping}}{{/if}}</span>
+                </div>
+                <div class="total-row">
+                    <span>📊 Tax (GST 18%):</span>
+                    <span>₹{{tax}}</span>
+                </div>
+                <div class="divider"></div>
+                <div class="total-row final">
+                    <span>💎 Total Amount:</span>
+                    <span>₹{{totalAmount}}</span>
+                </div>
+            </div>
+
+            <div class="payment-info">
+                <h3>💳 Payment Information</h3>
+                <p><strong>Payment Method:</strong> {{paymentMethod}}</p>
+                <p><strong>Payment Status:</strong> {{paymentStatus}} ✅</p>
+                {{#if trackingNumber}}
+                <p><strong>Tracking Number:</strong> {{trackingNumber}} 📦</p>
+                {{/if}}
+                <p><strong>Transaction Date:</strong> {{orderDate}}</p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="footer-content">
+                <div>
+                    <h4>📞 Contact Us</h4>
+                    <p>Email: support@suyambustores.com</p>
+                    <p>Phone: +91 98765 43210</p>
+                    <p>WhatsApp: +91 98765 43210</p>
+                    <p>Website: www.suyambustores.com</p>
+                </div>
+                <div>
+                    <h4>🔄 Return Policy</h4>
+                    <p>✅ 7-day hassle-free returns</p>
+                    <p>📦 Items must be in original condition</p>
+                    <p>🆓 Free returns on defective items</p>
+                    <p>💯 100% satisfaction guaranteed</p>
+                </div>
+            </div>
+            <div class="divider"></div>
+            <div class="thank-you">
+                🙏 Thank you for shopping with Suyambu Stores!
+            </div>
+            <p style="margin-top: 15px; font-size: 12px; opacity: 0.7;">
+                © 2025 Suyambu Stores. All rights reserved. | GST: 29XXXXX1234X1XX
+            </p>
+        </div>
+    </div>
+</body>
+</html>

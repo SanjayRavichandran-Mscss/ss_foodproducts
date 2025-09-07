@@ -2,8 +2,23 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const url = require('url');
+const nodemailer = require('nodemailer');
+const fs = require('fs').promises;
+const path = require('path');
+const handlebars = require('handlebars');
+const PDFDocument = require('pdfkit');
+const { v4: uuidv4 } = require('uuid');
 
 const SESSIONS = new Map(); // Store active sessions
+
+// Email configuration
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
 
 // Helper function to decode customerId from base64
 function getDecodedCustomerId(req) {
@@ -40,6 +55,237 @@ async function checkCustomerExists(customerId) {
   } catch (error) {
     console.error('Error checking customer existence:', error);
     return false;
+  }
+}
+
+// Helper function to generate invoice data
+async function generateInvoiceData(orderId) {
+  try {
+    // Fetch order details
+    const orderQuery = `
+      SELECT 
+        o.id AS order_id,
+        o.customer_id,
+        o.order_date,
+        o.total_amount,
+        o.tracking_number,
+        c.full_name as customer_name,
+        c.email as customer_email,
+        c.phone as customer_mobile,
+        CONCAT(a.street, ', ', a.city, ', ', a.state, ' ', a.zip_code, ', ', a.country) as delivery_address,
+        pm.method as payment_method,
+        os.status as order_status,
+        om.method as order_method
+      FROM orders o
+      JOIN customers c ON o.customer_id = c.id
+      JOIN addresses a ON o.address_id = a.id
+      JOIN payment_methods pm ON o.payment_method_id = pm.id
+      JOIN order_status os ON o.order_status_id = os.id
+      JOIN order_methods om ON o.order_method_id = om.id
+      WHERE o.id = ?
+    `;
+    
+    const [orderRows] = await db.execute(orderQuery, [orderId]);
+    
+    if (orderRows.length === 0) {
+      throw new Error('Order not found');
+    }
+    
+    const order = orderRows[0];
+    
+    // Fetch order items
+    const itemsQuery = `
+      SELECT 
+        oi.product_id,
+        oi.quantity,
+        oi.price_at_purchase,
+        oi.subtotal,
+        p.name,
+        p.thumbnail_url
+      FROM order_items oi
+      JOIN products p ON oi.product_id = p.id
+      WHERE oi.order_id = ?
+    `;
+    
+    const [itemRows] = await db.execute(itemsQuery, [orderId]);
+    
+    // Calculate totals
+    const subtotal = parseFloat(order.total_amount);
+    const shipping = subtotal > 999 ? 0 : 100;
+    const tax = (subtotal * 0.18); // 18% GST
+    const totalAmount = subtotal + shipping + tax;
+    
+    // Prepare template data
+    const templateData = {
+      baseUrl: process.env.BASE_URL || 'http://localhost:5000',
+      customerName: order.customer_name,
+      customerEmail: order.customer_email,
+      customerMobile: order.customer_mobile,
+      deliveryAddress: order.delivery_address,
+      orderId: order.order_id,
+      invoiceDate: new Date().toLocaleDateString('en-IN'),
+      orderDate: new Date(order.order_date).toLocaleDateString('en-IN'),
+      paymentMethod: order.payment_method,
+      orderStatus: order.order_status,
+      orderMethod: order.order_method,
+      items: itemRows.map(item => ({
+        ...item,
+        unitPrice: parseFloat(item.price_at_purchase / item.quantity).toFixed(2),
+        subtotal: parseFloat(item.subtotal).toFixed(2)
+      })),
+      subtotal: subtotal.toFixed(2),
+      shipping: shipping.toFixed(2),
+      freeShipping: shipping === 0,
+      tax: tax.toFixed(2),
+      totalAmount: totalAmount.toFixed(2),
+      paymentStatus: 'Completed',
+      trackingNumber: order.tracking_number || null
+    };
+    
+    return { templateData, order };
+  } catch (error) {
+    console.error('Error generating invoice data:', error);
+    throw error;
+  }
+}
+
+// Helper function to generate PDF using PDFKit
+async function generatePDFFromHTML(templateData) {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ margin: 50 });
+      const chunks = [];
+      
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+      
+      // Add logo or header
+      doc.fontSize(20).text('Suyambu Stores', 50, 50);
+      doc.fontSize(10).text('Invoice', 50, 80);
+      doc.moveDown();
+      
+      // Draw a line
+      doc.moveTo(50, 100).lineTo(550, 100).stroke();
+      doc.moveDown();
+      
+      // Invoice details
+      doc.fontSize(12);
+      doc.text(`Invoice Number: INV-${templateData.orderId}`, 50, 120);
+      doc.text(`Invoice Date: ${templateData.invoiceDate}`, 300, 120);
+      doc.text(`Order Date: ${templateData.orderDate}`, 50, 140);
+      doc.text(`Order ID: ${templateData.orderId}`, 300, 140);
+      doc.moveDown();
+      
+      // Customer information
+      doc.text(`Customer: ${templateData.customerName}`, 50, 180);
+      doc.text(`Email: ${templateData.customerEmail}`, 50, 200);
+      doc.text(`Phone: ${templateData.customerMobile}`, 50, 220);
+      doc.text(`Delivery Address: ${templateData.deliveryAddress}`, 50, 240, { width: 250 });
+      doc.moveDown();
+      
+      // Payment information
+      doc.text(`Payment Method: ${templateData.paymentMethod}`, 300, 180);
+      doc.text(`Order Status: ${templateData.orderStatus}`, 300, 200);
+      doc.text(`Tracking Number: ${templateData.trackingNumber || 'N/A'}`, 300, 220);
+      doc.moveDown();
+      
+      // Table header
+      let yPosition = 300;
+      doc.fontSize(10);
+      doc.text('Product', 50, yPosition);
+      doc.text('Quantity', 250, yPosition);
+      doc.text('Unit Price', 350, yPosition);
+      doc.text('Total', 450, yPosition);
+      
+      yPosition += 20;
+      doc.moveTo(50, yPosition).lineTo(550, yPosition).stroke();
+      yPosition += 10;
+      
+      // Table rows
+      templateData.items.forEach((item) => {
+        if (yPosition > 700) {
+          doc.addPage();
+          yPosition = 50;
+        }
+        
+        doc.text(item.name, 50, yPosition, { width: 180 });
+        doc.text(item.quantity.toString(), 250, yPosition);
+        doc.text(`₹${item.unitPrice}`, 350, yPosition);
+        doc.text(`₹${item.subtotal}`, 450, yPosition);
+        
+        yPosition += 20;
+      });
+      
+      yPosition += 10;
+      doc.moveTo(50, yPosition).lineTo(550, yPosition).stroke();
+      yPosition += 20;
+      
+      // Summary
+      doc.text(`Subtotal: ₹${templateData.subtotal}`, 400, yPosition);
+      yPosition += 20;
+      
+      if (templateData.freeShipping) {
+        doc.text('Shipping: FREE', 400, yPosition);
+      } else {
+        doc.text(`Shipping: ₹${templateData.shipping}`, 400, yPosition);
+      }
+      
+      yPosition += 20;
+      doc.text(`Tax (18% GST): ₹${templateData.tax}`, 400, yPosition);
+      yPosition += 20;
+      
+      doc.fontSize(14).text(`Total Amount: ₹${templateData.totalAmount}`, 400, yPosition, { align: 'right' });
+      
+      // Footer
+      doc.fontSize(10);
+      doc.text('Thank you for your business!', 50, 750, { align: 'center' });
+      doc.text('Suyambu Stores - Quality Products, Best Prices', 50, 765, { align: 'center' });
+      
+      doc.end();
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+// Helper function to send invoice email with PDF attachment
+async function sendInvoiceEmail(order, templateData, pdfBuffer) {
+  try {
+    // Read and compile email template
+    const emailTemplatePath = path.join(__dirname, '../EmailTemplates/InvoiceEmail.html');
+    const emailTemplateSource = await fs.readFile(emailTemplatePath, 'utf-8');
+    const emailTemplate = handlebars.compile(emailTemplateSource);
+    const emailContent = emailTemplate({
+      customerName: templateData.customerName,
+      orderId: templateData.orderId,
+      orderDate: templateData.orderDate,
+      totalAmount: templateData.totalAmount,
+      baseUrl: templateData.baseUrl
+    });
+    
+    const mailOptions = {
+      from: {
+        name: 'Suyambu Stores',
+        address: process.env.EMAIL_USER
+      },
+      to: order.customer_email,
+      subject: `Order Confirmation & Invoice - Order #${templateData.orderId} - Suyambu Stores`,
+      html: emailContent,
+      attachments: [
+        {
+          filename: `Invoice-${templateData.orderId}.pdf`,
+          content: pdfBuffer,
+          contentType: 'application/pdf'
+        }
+      ]
+    };
+    
+    await transporter.sendMail(mailOptions);
+    console.log(`Invoice email sent successfully to ${order.customer_email} for order ${templateData.orderId}`);
+  } catch (error) {
+    console.error('Error sending invoice email:', error);
+    throw error;
   }
 }
 
@@ -521,8 +767,6 @@ exports.getCustomerDetails = async (req, res) => {
   }
 };
 
-
-
 exports.placeOrder = async (req, res) => {
   const authHeader = req.headers.authorization;
 
@@ -602,6 +846,27 @@ exports.placeOrder = async (req, res) => {
       }
 
       await connection.commit();
+
+      // Generate and send invoice email asynchronously with PDF attachment
+      setImmediate(async () => {
+        try {
+          console.log(`Starting invoice generation for order ${orderId}`);
+          
+          // Generate invoice data
+          const { templateData, order } = await generateInvoiceData(orderId);
+          
+          // Generate PDF using PDFKit
+          const pdfBuffer = await generatePDFFromHTML(templateData);
+          
+          // Send email with PDF attachment
+          await sendInvoiceEmail(order, templateData, pdfBuffer);
+          
+          console.log(`Invoice sent successfully for order ${orderId}`);
+        } catch (invoiceError) {
+          console.error(`Failed to send invoice for order ${orderId}:`, invoiceError);
+          // Don't fail the order placement if invoice fails
+        }
+      });
 
       res.status(201).json({ message: 'Order placed successfully', orderId });
     } catch (err) {
@@ -699,5 +964,51 @@ exports.getOrders = async (req, res) => {
   } catch (error) {
     console.error('Get orders error:', error);
     res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
+
+// New function to get invoice data for frontend PDF generation
+exports.getInvoiceData = async (req, res) => {
+  const { orderId } = req.params;
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: 'Unauthorized: No token provided' });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret');
+
+    // Verify order belongs to the authenticated customer
+    const [orderCheck] = await db.query('SELECT customer_id FROM orders WHERE id = ?', [orderId]);
+    if (orderCheck.length === 0) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (orderCheck[0].customer_id !== decoded.id) {
+      return res.status(403).json({ message: 'Access denied: Order does not belong to you' });
+    }
+
+    // Generate invoice data
+    const { templateData } = await generateInvoiceData(orderId);
+
+    // Generate PDF using PDFKit
+    const pdfBuffer = await generatePDFFromHTML(templateData);
+
+    // Set response headers for PDF download
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=Invoice-${orderId}.pdf`);
+    
+    // Send the PDF buffer as response
+    res.send(pdfBuffer);
+
+  } catch (error) {
+    console.error('Get invoice data error:', error);
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+    res.status(500).json({ message: 'Failed to get invoice data: ' + error.message });
   }
 };
