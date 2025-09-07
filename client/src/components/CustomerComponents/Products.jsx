@@ -21,10 +21,14 @@ export default function Products({ isLoggedIn, customerId, cartItems, setCartIte
         console.log("Products data fetched", res.data);
         setProducts(res.data || []);
         const uniqueCategories = [...new Set(res.data.map((product) => product.category_name))];
-        setCategories([{ label: "All Products", value: "all" }, ...uniqueCategories.map(cat => ({
-          label: cat,
-          value: cat.toLowerCase()
-        }))]);
+        setCategories([
+          { label: "All Products", value: "all" },
+          ...uniqueCategories.map(cat => ({
+            label: cat,
+            value: cat.toLowerCase()
+          })),
+          { label: "My Wishlist", value: "wishlist" }
+        ]);
         setLoading(false);
       })
       .catch((error) => {
@@ -75,7 +79,8 @@ export default function Products({ isLoggedIn, customerId, cartItems, setCartIte
 
   const filteredProducts = products
     .filter(product =>
-      category === "all" || product.category_name.toLowerCase() === category
+      category === "all" ||
+      (category === "wishlist" ? wishlist.includes(product.id) : product.category_name.toLowerCase() === category)
     )
     .filter(product =>
       product.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -105,18 +110,32 @@ export default function Products({ isLoggedIn, customerId, cartItems, setCartIte
             className="w-full md:w-1/2 lg:w-1/3 p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
           />
         </div>
-        <div className="flex flex-wrap gap-4 mb-8">
-          {categories.map((cat) => (
-            <button
-              key={cat.value}
-              onClick={() => setCategory(cat.value)}
-              className={`flex items-center gap-2 px-5 py-2 rounded-lg font-semibold shadow-sm text-md transition
-                ${category === cat.value ? "bg-green-600 text-white" : "bg-white text-gray-800 border"}
-                hover:bg-green-400 hover:text-white`}
-            >
-              {cat.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-4 mb-8">
+          <div className="flex flex-wrap gap-4">
+            {categories.filter(cat => cat.value !== "wishlist").map((cat) => (
+              <button
+                key={cat.value}
+                onClick={() => setCategory(cat.value)}
+                className={`flex items-center gap-2 px-5 py-2 rounded-lg font-semibold shadow-sm text-md transition
+                  ${category === cat.value ? "bg-green-600 text-white" : "bg-white text-gray-800 border"}
+                  hover:bg-green-400 hover:text-white`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+          <div className="ml-auto">
+            {isLoggedIn && (
+              <button
+                onClick={() => setCategory("wishlist")}
+                className={`flex items-center gap-2 px-5 py-2 rounded-lg font-semibold shadow-sm text-md transition
+                  ${category === "wishlist" ? "bg-green-600 text-white" : "bg-white text-gray-800 border"}
+                  hover:bg-green-400 hover:text-white`}
+              >
+                My Wishlist
+              </button>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredProducts.length > 0 ? (
@@ -134,7 +153,7 @@ export default function Products({ isLoggedIn, customerId, cartItems, setCartIte
             ))
           ) : (
             <div className="text-center py-8 text-gray-600 col-span-4">
-              No products available in this category or search.
+              {category === "wishlist" ? "No products in your wishlist." : "No products available in this category or search."}
             </div>
           )}
         </div>
@@ -162,10 +181,9 @@ function ProductCard({
     const encodedCustomerId = btoa(customerId || "");
     const encodedProductId = btoa(product.id.toString());
     navigate(`/customer?customerId=${encodedCustomerId}&productId=${encodedProductId}`);
-    window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll to top after navigation
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Show badge for stock left if 5 or fewer items remain and it's not 0
   const showLowStockBadge = product.stock_quantity > 0 && product.stock_quantity <= 5;
 
   return (
@@ -203,7 +221,6 @@ function ProductCard({
         <span className="font-bold text-green-600 text-xl mb-1 block">
           ₹{product.price}
         </span>
-        {/* Description intentionally removed */}
         {isLoggedIn && product.stock_quantity > 0 ? (
           <div className="flex items-center gap-2">
             <button

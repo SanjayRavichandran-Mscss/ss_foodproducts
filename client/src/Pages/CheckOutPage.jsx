@@ -7,39 +7,6 @@ import OrderSummary from "../components/CustomerComponents/OrderSummary";
 import Header from "../components/CustomerComponents/Header";
 import Cart from "../components/CustomerComponents/Cart";
 
-// Dummy Cart Items for cart flow
-const dummyCartItems = [
-  {
-    product_id: 1,
-    product_name: "Wireless Headphones",
-    thumbnail_url: "/images/headphones.jpg",
-    price: 2999.00,
-    quantity: 2,
-    stock_quantity: 10,
-    unit: "item",
-  },
-  {
-    product_id: 2,
-    product_name: "Smartphone Case",
-    thumbnail_url: "/images/case.jpg",
-    price: 499.00,
-    quantity: 1,
-    stock_quantity: 20,
-    unit: "item",
-  },
-];
-
-// Dummy Buy Now Item for buy_now flow
-const dummyBuyNowItem = {
-  product_id: 1,
-  product_name: "Wireless Headphones",
-  thumbnail_url: "/images/headphones.jpg",
-  price: 2999.00,
-  quantity: 1,
-  stock_quantity: 10,
-  unit: "item",
-};
-
 function decodeCustomerId(encodedId) {
   try {
     return atob(encodedId);
@@ -66,7 +33,22 @@ const CheckOutPage = () => {
   const [cartAnimation, setCartAnimation] = useState("");
 
   const isBuyNow = identifier === "buy_now";
-  const items = isBuyNow ? [state?.product || dummyBuyNowItem] : cartItems;
+  const buyNowItem = state?.product;
+  const items = isBuyNow
+    ? buyNowItem
+      ? [
+          {
+            product_id: buyNowItem.product_id || buyNowItem.id,
+            product_name: buyNowItem.product_name || buyNowItem.name,
+            price: parseFloat(buyNowItem.price),
+            quantity: buyNowItem.quantity || 1,
+            thumbnail_url: buyNowItem.thumbnail_url,
+            stock_quantity: buyNowItem.stock_quantity,
+            unit: buyNowItem.unit || "item",
+          },
+        ]
+      : []
+    : cartItems;
   const orderMethod = isBuyNow ? "buy_now" : "cart";
 
   const subtotal = items.reduce((sum, item) => sum + parseFloat(item.price) * item.quantity, 0);
@@ -90,6 +72,12 @@ const CheckOutPage = () => {
       return;
     }
 
+    if (isBuyNow && !buyNowItem) {
+      console.error("No product data provided for buy_now flow");
+      navigate("/", { replace: true });
+      return;
+    }
+
     const verifyCustomer = async () => {
       try {
         const response = await fetch(
@@ -105,7 +93,9 @@ const CheckOutPage = () => {
         if (response.ok) {
           const data = await response.json();
           setCustomerData(data);
-          await fetchCart();
+          if (!isBuyNow) {
+            await fetchCart();
+          }
         } else {
           console.error("Token verification failed, clearing storage");
           localStorage.removeItem("customerToken");
@@ -123,7 +113,7 @@ const CheckOutPage = () => {
     };
 
     verifyCustomer();
-  }, [customerId, identifier, navigate]);
+  }, [customerId, identifier, navigate, isBuyNow, buyNowItem]);
 
   const fetchCart = async () => {
     if (!customerId) return;
@@ -138,7 +128,6 @@ const CheckOutPage = () => {
       });
       const data = await response.json();
       setCartItems(data || []);
-      // Update navigation state for cart flow
       if (!isBuyNow) {
         navigate(`/checkout?customerId=${btoa(customerId)}&identifier=cart`, {
           state: { cartItems: data || [], orderMethod: "cart" },
@@ -214,7 +203,7 @@ const CheckOutPage = () => {
     setTimeout(() => {
       setShowCartModal(false);
       setCartAnimation("");
-      fetchCart(); // Ensure cart is refreshed after closing modal
+      fetchCart();
     }, 300);
   };
 
@@ -234,7 +223,7 @@ const CheckOutPage = () => {
     }
   };
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
     if (!selectedAddressId || !selectedPaymentMethodId) {
       Swal.fire({
         icon: "warning",
@@ -243,19 +232,68 @@ const CheckOutPage = () => {
       });
       return;
     }
-    if (selectedPaymentMethodId === 1) {
+
+    if (items.length === 0) {
       Swal.fire({
-        icon: "success",
-        title: "Order Placed",
-        text: "Your order has been placed and an invoice has been sent to your mail.",
-      }).then(() => {
-        navigate(`/customer?customerId=${btoa(customerId)}`);
+        icon: "error",
+        title: "No Items",
+        text: "No items to place order. Please add items to your cart or select a product.",
       });
-    } else if (selectedPaymentMethodId === 2) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("customerToken");
+      const response = await fetch(`http://localhost:5000/api/customer/orders`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          customerId,
+          addressId: selectedAddressId,
+          paymentMethodId: selectedPaymentMethodId,
+          orderMethod,
+          items: items.map(item => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+            price: item.price,
+          })),
+          totalAmount: subtotal,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to place order");
+      }
+
+      if (!isBuyNow) {
+        await fetchCart();
+      }
+
+      if (selectedPaymentMethodId === 1) {
+        Swal.fire({
+          icon: "success",
+          title: "Order Placed",
+          text: "Your order has been placed and an invoice has been sent to your mail.",
+        }).then(() => {
+          navigate(`/customer?customerId=${btoa(customerId)}`);
+        });
+      } else if (selectedPaymentMethodId === 2) {
+        Swal.fire({
+          icon: "warning",
+          title: "Payment Required",
+          text: "Please complete the online payment to place your order.",
+        });
+      }
+    } catch (error) {
+      console.error("Place order error:", error);
       Swal.fire({
-        icon: "warning",
-        title: "Payment Required",
-        text: "Please complete the online payment to place your order.",
+        icon: "error",
+        title: "Error",
+        text: `Failed to place order: ${error.message}`,
       });
     }
   };

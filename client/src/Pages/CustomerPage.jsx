@@ -8,6 +8,8 @@ import Footer from "../components/CustomerComponents/Footer";
 import CustomerLogin from "../components/Authentication/CustomerLogin";
 import CustomerRegister from "../components/Authentication/CustomerRegister";
 import Cart from "../components/CustomerComponents/Cart";
+import MyOrders from "../components/CustomerComponents/MyOrders";
+// import "./CustomerPage.css"; // Import custom CSS
 
 function decodeCustomerId(encodedId) {
   try {
@@ -50,6 +52,8 @@ export default function CustomerPage() {
   const [wishlist, setWishlist] = useState([]);
   const [showCartModal, setShowCartModal] = useState(false);
   const [cartAnimation, setCartAnimation] = useState("");
+  const [showOrdersModal, setShowOrdersModal] = useState(false);
+  const [ordersAnimation, setOrdersAnimation] = useState("");
   const [message, setMessage] = useState(null);
 
   useEffect(() => {
@@ -242,6 +246,19 @@ export default function CustomerPage() {
     }, 300);
   };
 
+  const handleOrdersClick = () => {
+    setOrdersAnimation("slide-in");
+    setShowOrdersModal(true);
+  };
+
+  const handleCloseOrders = () => {
+    setOrdersAnimation("slide-out");
+    setTimeout(() => {
+      setShowOrdersModal(false);
+      setOrdersAnimation("");
+    }, 300);
+  };
+
   const updateQuantity = (productId, change) => {
     const item = cartItems.find((item) => item.product_id === productId);
     if (item) {
@@ -300,7 +317,7 @@ export default function CustomerPage() {
   console.log("Rendering main content", { verified, customerData, cartItems });
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col custom-scrollbar">
       <Header
         customerData={customerData}
         onLoginClick={handleLoginClick}
@@ -309,6 +326,7 @@ export default function CustomerPage() {
         customerId={customerId}
         fetchCart={fetchCart}
         onCartClick={handleCartClick}
+        onOrdersClick={handleOrdersClick}
       />
       <main className="flex-1 bg-gray-50 pt-20">
         {productId ? (
@@ -345,11 +363,11 @@ export default function CustomerPage() {
       
       {showAuthModal && (
         <div 
-          className={`fixed inset-0  bg-opacity-50 flex z-50 transition-opacity duration-300 ${modalAnimation.includes("in") ? "opacity-100" : "opacity-0"}`}
+          className={`fixed inset-0 bg-opacity-50 flex z-50 transition-opacity duration-300 ${modalAnimation.includes("in") ? "opacity-100" : "opacity-0"}`}
           onClick={handleCloseModal}
         >
           <div 
-            className={`ml-auto h-full w-full sm:w-96 bg-white shadow-xl transform transition-transform duration-300 ${modalAnimation === "slide-in" ? "translate-x-0" : modalAnimation === "slide-out" ? "translate-x-full" : "translate-x-full"}`}
+            className={`ml-auto h-full w-full sm:w-96 bg-white shadow-xl transform transition-transform duration-300 custom-scrollbar ${modalAnimation === "slide-in" ? "translate-x-0" : modalAnimation === "slide-out" ? "translate-x-full" : "translate-x-full"}`}
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -398,6 +416,15 @@ export default function CustomerPage() {
           handleCloseCart={handleCloseCart}
           showCartModal={showCartModal}
           cartAnimation={cartAnimation}
+        />
+      )}
+
+      {showOrdersModal && (
+        <MyOrders
+          customerId={customerId}
+          handleCloseOrders={handleCloseOrders}
+          showOrdersModal={showOrdersModal}
+          ordersAnimation={ordersAnimation}
         />
       )}
       

@@ -31,7 +31,7 @@ const Cart = ({
       onClick={handleCloseCart}
     >
       <div
-        className="ml-auto h-full w-full sm:w-[420px] bg-white shadow-xl relative transition-transform duration-300 p-0 pt-0 overflow-y-auto"
+        className="ml-auto h-full w-full sm:w-[420px] bg-white shadow-xl relative transition-transform duration-300 p-0 pt-0 overflow-y-auto custom-scrollbar"
         style={{
           transform: cartAnimation === "slide-in" ? "translateX(0)" : "translateX(100%)",
         }}

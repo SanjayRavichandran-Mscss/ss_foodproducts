@@ -1,4 +1,3 @@
-
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
@@ -518,6 +517,187 @@ exports.getCustomerDetails = async (req, res) => {
     res.status(200).json(rows[0]);
   } catch (error) {
     console.error('Get customer details error:', error);
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
+
+
+
+exports.placeOrder = async (req, res) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: 'Unauthorized: No token provided' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret');
+
+    const { customerId: customerIdStr, addressId, paymentMethodId, orderMethod, items, totalAmount } = req.body;
+    const customerId = parseInt(customerIdStr, 10);
+
+    if (isNaN(customerId)) {
+      return res.status(400).json({ message: 'Invalid customer ID' });
+    }
+
+    if (decoded.id !== customerId) {
+      return res.status(401).json({ message: 'Unauthorized: Token does not match customer ID' });
+    }
+
+    if (!addressId || !paymentMethodId || !orderMethod || !items || items.length === 0) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    const orderMethodId = orderMethod === 'buy_now' ? 1 : orderMethod === 'cart' ? 2 : null;
+    if (!orderMethodId) {
+      return res.status(400).json({ message: 'Invalid order method' });
+    }
+
+    // Validate items
+    let calculatedTotal = 0;
+    let orderItemsValues = [];
+    for (const item of items) {
+      if (!item.product_id || !item.quantity || !item.price || isNaN(item.quantity) || isNaN(item.price)) {
+        return res.status(400).json({ message: 'Invalid item data: product_id, quantity, and price are required' });
+      }
+      const qty = parseInt(item.quantity, 10);
+      const price = parseFloat(item.price);
+      if (qty <= 0 || price < 0) {
+        return res.status(400).json({ message: 'Invalid quantity or price' });
+      }
+      const priceAtPurchase = price * qty;
+      calculatedTotal += priceAtPurchase;
+      orderItemsValues.push([null, item.product_id, qty, priceAtPurchase, priceAtPurchase]);
+    }
+
+    // Verify totalAmount
+    if (totalAmount && Math.abs(parseFloat(totalAmount) - calculatedTotal) > 0.01) {
+      return res.status(400).json({ message: 'Total amount mismatch' });
+    }
+
+    const connection = await db.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      const [orderResult] = await connection.query(
+        'INSERT INTO orders (customer_id, address_id, order_date, order_status_id, total_amount, payment_method_id, tracking_number, updated_at, order_method_id) VALUES (?, ?, NOW(), 1, ?, ?, NULL, NOW(), ?)',
+        [customerId, addressId, calculatedTotal, paymentMethodId, orderMethodId]
+      );
+
+      const orderId = orderResult.insertId;
+
+      // Update orderItemsValues with orderId
+      orderItemsValues = orderItemsValues.map(row => [orderId, ...row.slice(1)]);
+
+      if (orderItemsValues.length > 0) {
+        await connection.query(
+          'INSERT INTO order_items (order_id, product_id, quantity, price_at_purchase, subtotal) VALUES ?',
+          [orderItemsValues]
+        );
+      }
+
+      if (orderMethodId === 2) {
+        await connection.query('DELETE FROM cart_items WHERE customer_id = ?', [customerId]);
+      }
+
+      await connection.commit();
+
+      res.status(201).json({ message: 'Order placed successfully', orderId });
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Place order error:', error);
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
+
+exports.getOrders = async (req, res) => {
+  const customerId = req.query.customerId;
+
+  if (!customerId || isNaN(customerId)) {
+    return res.status(400).json({ message: 'Invalid or missing customer ID' });
+  }
+
+  const parsedCustomerId = parseInt(customerId, 10);
+
+  try {
+    // Check if customer exists
+    const [customerExists] = await db.query('SELECT id FROM customers WHERE id = ?', [parsedCustomerId]);
+    if (customerExists.length === 0) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    const ordersQuery = `
+      SELECT o.id AS order_id, o.customer_id, o.address_id, o.order_date, o.order_status_id, 
+             o.total_amount, o.payment_method_id, o.tracking_number, o.updated_at, o.order_method_id,
+             a.street, a.city, a.state, a.zip_code, a.country,
+             os.status AS order_status,
+             pm.method AS payment_method,
+             om.method AS order_method
+      FROM orders o
+      JOIN addresses a ON o.address_id = a.id
+      JOIN order_status os ON o.order_status_id = os.id
+      JOIN payment_methods pm ON o.payment_method_id = pm.id
+      JOIN order_methods om ON o.order_method_id = om.id
+      WHERE o.customer_id = ?
+      ORDER BY o.order_date DESC
+    `;
+    const [orders] = await db.query(ordersQuery, [parsedCustomerId]);
+
+    const itemsQuery = `
+      SELECT oi.order_id, oi.product_id, oi.quantity, oi.price_at_purchase, oi.subtotal,
+             p.name, p.description, p.thumbnail_url
+      FROM order_items oi
+      JOIN products p ON oi.product_id = p.id
+      JOIN orders o ON oi.order_id = o.id
+      WHERE o.customer_id = ?
+    `;
+    const [itemsRows] = await db.query(itemsQuery, [parsedCustomerId]);
+
+    const itemsMap = {};
+    for (const row of itemsRows) {
+      const orderId = row.order_id;
+      if (!itemsMap[orderId]) {
+        itemsMap[orderId] = [];
+      }
+      itemsMap[orderId].push({
+        product_id: row.product_id,
+        quantity: row.quantity,
+        price_at_purchase: row.price_at_purchase,
+        subtotal: row.subtotal,
+        name: row.name,
+        description: row.description,
+        thumbnail_url: row.thumbnail_url
+      });
+    }
+
+    for (let order of orders) {
+      order.items = itemsMap[order.order_id] || [];
+      order.address = {
+        street: order.street,
+        city: order.city,
+        state: order.state,
+        zip_code: order.zip_code,
+        country: order.country
+      };
+      delete order.street;
+      delete order.city;
+      delete order.state;
+      delete order.zip_code;
+      delete order.country;
+    }
+
+    res.status(200).json(orders);
+  } catch (error) {
+    console.error('Get orders error:', error);
     res.status(500).json({ message: 'Server error: ' + error.message });
   }
 };

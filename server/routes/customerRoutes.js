@@ -25,4 +25,8 @@ router.delete('/addresses', customerController.deleteAddress);
 // Customer details route
 router.get('/customer-details', customerController.getCustomerDetails);
 
+
+// Order routes
+router.post('/orders', customerController.placeOrder);
+router.get('/orders', customerController.getOrders);
 module.exports = router;
